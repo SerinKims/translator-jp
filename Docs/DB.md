@@ -133,6 +133,7 @@ erDiagram
         integer total_chunks
         integer completed_chunks
         integer failed_chunks
+        text error_message
         integer elapsed_ms
 
         datetime created_at
@@ -145,9 +146,16 @@ erDiagram
         integer chunk_index
         text source_text
         text translated_text
+        text context_before
+        text context_after
         text status
         integer retry_count
+        text prompt_used
+        text raw_model_response
         integer elapsed_ms
+        text error_message
+        datetime created_at
+        datetime updated_at
     }
 
     glossary_sets {
@@ -155,6 +163,8 @@ erDiagram
         text name
         text description
         integer is_active
+        datetime created_at
+        datetime updated_at
     }
 
     glossary_terms {
@@ -163,7 +173,11 @@ erDiagram
         text source_term
         text target_term
         text term_type
+        text description
+        integer is_case_sensitive
         integer is_active
+        datetime created_at
+        datetime updated_at
     }
 
     translation_cache {
@@ -174,7 +188,12 @@ erDiagram
         text model_name
         text prompt_version
         text style
+        text honorific_policy
+        integer preserve_names
+        text glossary_hash
         integer hit_count
+        datetime created_at
+        datetime updated_at
     }
 
     translation_feedback {
@@ -186,6 +205,8 @@ erDiagram
         text user_corrected_translation
         integer rating
         text feedback_type
+        text comment
+        datetime created_at
     }
 
     prompt_versions {
@@ -194,17 +215,28 @@ erDiagram
         text task_type
         text system_prompt
         text user_prompt_template
+        text description
         integer is_active
+        datetime created_at
     }
 
     eval_runs {
         integer id PK
+        text run_name
         text model_name
         text prompt_version
         text dataset_name
         integer total_cases
         integer passed_cases
         integer failed_cases
+        integer avg_elapsed_ms
+        real no_japanese_left_score
+        real paragraph_match_score
+        real glossary_preserve_score
+        real dialogue_style_score
+        real no_empty_translation_score
+        text report_json
+        datetime created_at
     }
 
     eval_results {
@@ -215,15 +247,23 @@ erDiagram
         text expected_translation
         text actual_translation
         integer passed
+        real score
+        text fail_reason
+        integer elapsed_ms
+        datetime created_at
     }
 
     user_settings {
         integer id PK
         text default_style
+        text default_honorific_policy
+        integer default_preserve_names
         text default_model_name
         text default_prompt_version
         integer auto_use_glossary
         integer auto_cache_enabled
+        datetime created_at
+        datetime updated_at
     }
 ```
 
