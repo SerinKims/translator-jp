@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -27,7 +37,9 @@ class TimestampMixin:
 class TranslationJob(TimestampMixin, Base):
     __tablename__ = "translation_jobs"
     __table_args__ = (
-        CheckConstraint("source_site IN ('manual', 'pixiv')", name="ck_translation_jobs_source_site"),
+        CheckConstraint(
+            "source_site IN ('manual', 'pixiv')", name="ck_translation_jobs_source_site"
+        ),
         CheckConstraint(
             "status IN ('pending', 'running', 'completed', 'failed', 'cancelled')",
             name="ck_translation_jobs_status",
@@ -156,7 +168,9 @@ class TranslationFeedback(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    job_id: Mapped[int | None] = mapped_column(ForeignKey("translation_jobs.id", ondelete="SET NULL"))
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("translation_jobs.id", ondelete="SET NULL")
+    )
     chunk_id: Mapped[int | None] = mapped_column(
         ForeignKey("translation_chunks.id", ondelete="SET NULL"),
     )
