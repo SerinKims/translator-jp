@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+httpx
+beautifulsoup4
+selectolax
+playwright
+sqlalchemy
+alembic
+pytest
+pytest-asyncio
+ruff
+black
+mypy
+rouge-score
+sacrebleu
