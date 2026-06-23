@@ -41,7 +41,10 @@ class TranslationJob(TimestampMixin, Base):
             "source_site IN ('manual', 'pixiv')", name="ck_translation_jobs_source_site"
         ),
         CheckConstraint(
-            "status IN ('pending', 'running', 'completed', 'failed', 'cancelled')",
+            "status IN ("
+            "'pending', 'fetched', 'pending_translation', "
+            "'running', 'completed', 'failed', 'cancelled'"
+            ")",
             name="ck_translation_jobs_status",
         ),
     )
