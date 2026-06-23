@@ -79,6 +79,24 @@ def test_japanese_quotes_keep_open_quote_until_it_closes() -> None:
     assert quoted_chunks == ["「これは一つ目の文です。まだ台詞は続きます」"]
 
 
+def test_english_double_quotes_keep_open_quote_until_it_closes() -> None:
+    text = '"This is the first sentence. The quote continues." She left. Another sentence.'
+
+    chunks = chunk_text(text, max_chars_per_chunk=55)
+
+    quoted_chunks = [chunk["source_text"] for chunk in chunks if '"' in chunk["source_text"]]
+    assert quoted_chunks == ['"This is the first sentence. The quote continues."']
+
+
+def test_chinese_curly_quotes_keep_open_quote_until_it_closes() -> None:
+    text = "“这是第一句话。对白还在继续。”她笑了。下一句。"
+
+    chunks = chunk_text(text, max_chars_per_chunk=18)
+
+    quoted_chunks = [chunk["source_text"] for chunk in chunks if "“" in chunk["source_text"]]
+    assert quoted_chunks == ["“这是第一句话。对白还在继续。”"]
+
+
 def test_overlap_context_is_created_from_adjacent_paragraphs() -> None:
     text = "\n\n".join(["第一段落です。", "第二段落です。", "第三段落です。"])
 

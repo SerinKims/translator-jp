@@ -8,10 +8,16 @@ MAX_CHARS_PER_CHUNK = 1800
 CHUNK_OVERLAP_PARAGRAPHS = 1
 
 _BLANK_LINE_PATTERN = re.compile(r"\n[ \t]*\n+")
-_OPEN_TO_CLOSE_QUOTES = {"「": "」", "『": "』"}
+_OPEN_TO_CLOSE_QUOTES = {
+    "「": "」",
+    "『": "』",
+    "“": "”",
+    "‘": "’",
+}
+_SYMMETRIC_QUOTES = {'"'}
 _CLOSE_QUOTES = set(_OPEN_TO_CLOSE_QUOTES.values())
-_SENTENCE_ENDINGS = set("。！？!?")
-_DIALOGUE_STARTS = tuple(_OPEN_TO_CLOSE_QUOTES)
+_SENTENCE_ENDINGS = set("。！？!?.")
+_DIALOGUE_STARTS = tuple(_OPEN_TO_CLOSE_QUOTES) + tuple(_SYMMETRIC_QUOTES)
 
 
 class Chunk(TypedDict):
@@ -201,9 +207,7 @@ def _split_sentences(text: str) -> list[str]:
     last_sentence_ending = -1
 
     for position, char in enumerate(text):
-        if char in _OPEN_TO_CLOSE_QUOTES:
-            quote_stack.append(_OPEN_TO_CLOSE_QUOTES[char])
-        elif quote_stack and char == quote_stack[-1]:
+        if quote_stack and char == quote_stack[-1]:
             quote_stack.pop()
             if not quote_stack and last_sentence_ending >= start:
                 end = position + 1
@@ -211,6 +215,10 @@ def _split_sentences(text: str) -> list[str]:
                 start = end
                 last_sentence_ending = -1
             continue
+        if char in _SYMMETRIC_QUOTES:
+            quote_stack.append(char)
+        elif char in _OPEN_TO_CLOSE_QUOTES:
+            quote_stack.append(_OPEN_TO_CLOSE_QUOTES[char])
         elif char in _CLOSE_QUOTES and not quote_stack:
             if last_sentence_ending >= start:
                 end = position + 1
@@ -238,12 +246,15 @@ def _quote_depth_after(text: str, initial_depth: int = 0) -> int:
     depth = initial_depth
     expected_closes: list[str] = [""] * initial_depth
     for char in text:
-        if char in _OPEN_TO_CLOSE_QUOTES:
-            expected_closes.append(_OPEN_TO_CLOSE_QUOTES[char])
-            depth += 1
-        elif expected_closes and char == expected_closes[-1]:
+        if expected_closes and char == expected_closes[-1]:
             expected_closes.pop()
             depth -= 1
+        elif char in _SYMMETRIC_QUOTES:
+            expected_closes.append(char)
+            depth += 1
+        elif char in _OPEN_TO_CLOSE_QUOTES:
+            expected_closes.append(_OPEN_TO_CLOSE_QUOTES[char])
+            depth += 1
         elif char in _CLOSE_QUOTES and depth > 0:
             depth -= 1
             if expected_closes:
