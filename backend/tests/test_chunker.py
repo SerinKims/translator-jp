@@ -60,7 +60,9 @@ def test_dialogue_lines_without_sentence_endings_split_between_lines() -> None:
 
     chunks = chunk_text(text, max_chars_per_chunk=11)
 
-    assert all(chunk["source_text"].count("「") == chunk["source_text"].count("」") for chunk in chunks)
+    assert all(
+        chunk["source_text"].count("「") == chunk["source_text"].count("」") for chunk in chunks
+    )
     assert [chunk["source_text"] for chunk in chunks] == [
         "「返事はまだ」",
         "「それでも待つ」",
