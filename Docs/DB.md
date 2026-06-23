@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
 
     -- 작업 상태
     status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+        CHECK (status IN ('pending', 'fetched', 'pending_translation', 'running', 'completed', 'failed', 'cancelled')),
 
     total_chunks INTEGER NOT NULL DEFAULT 0,
     completed_chunks INTEGER NOT NULL DEFAULT 0,
@@ -1237,7 +1237,7 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
     preserve_names INTEGER NOT NULL DEFAULT 1,
 
     status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+        CHECK (status IN ('pending', 'fetched', 'pending_translation', 'running', 'completed', 'failed', 'cancelled')),
 
     total_chunks INTEGER NOT NULL DEFAULT 0,
     completed_chunks INTEGER NOT NULL DEFAULT 0,
