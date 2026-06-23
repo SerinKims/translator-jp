@@ -29,7 +29,7 @@ PIXIV_PAYLOAD = {
     }
 }
 PIXIV_HTML = (
-    "<html><head><meta id=\"meta-preload-data\" content='"
+    '<html><head><meta id="meta-preload-data" content=\''
     + json.dumps(PIXIV_PAYLOAD, ensure_ascii=True)
     + "'></head><body></body></html>"
 )

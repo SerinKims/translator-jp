@@ -18,11 +18,9 @@ from app.schemas.fetch import PixivFetchResponse
 
 
 class PixivClientProtocol(Protocol):
-    async def fetch_html(self, url: str) -> PixivFetchedPage:
-        ...
+    async def fetch_html(self, url: str) -> PixivFetchedPage: ...
 
-    async def fetch_novel_json(self, source_url: str, source_work_id: str) -> PixivFetchedPage:
-        ...
+    async def fetch_novel_json(self, source_url: str, source_work_id: str) -> PixivFetchedPage: ...
 
 
 class FetchServiceError(RuntimeError):

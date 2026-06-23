@@ -97,7 +97,10 @@ def test_parse_current_pixiv_ajax_payload_for_user_reference_url() -> None:
 
 
 def test_parse_pixiv_raises_when_text_is_missing() -> None:
-    with pytest.raises(PixivParseError, match="페이지는 열렸지만 소설 원문을 찾지 못했습니다. 원문을 직접 입력해주세요."):
+    with pytest.raises(
+        PixivParseError,
+        match="페이지는 열렸지만 소설 원문을 찾지 못했습니다. 원문을 직접 입력해주세요.",
+    ):
         parse_pixiv_novel_html(
             "<html><body><h1>作品タイトル</h1></body></html>",
             "https://www.pixiv.net/novel/show.php?id=12345678",

@@ -62,8 +62,7 @@ class PixivHttpClient:
         timeout = httpx.Timeout(self.settings.pixiv_fetch_timeout_seconds)
         headers = {
             "User-Agent": (
-                "Mozilla/5.0 (compatible; translator-jp/0.1; "
-                "+https://localhost.localdomain)"
+                "Mozilla/5.0 (compatible; translator-jp/0.1; +https://localhost.localdomain)"
             ),
             "Accept": accept,
             "Accept-Language": "ja,en-US;q=0.8,en;q=0.6",
