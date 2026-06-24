@@ -10,10 +10,10 @@ Frontend Next.js
 Backend FastAPI
   ├─ crawler: pixiv URL 검증/수집/파싱
   ├─ services: fetch, chunking, glossary, cache, history, evaluator
-  ├─ llm: Ollama client, prompt 구성, translator
+  ├─ llm: LiteRT-LM client, prompt 구성, translator
   └─ db: SQLAlchemy, repository layer
   ↓
-Ollama qwen3:14b
+LiteRT-LM gemma4-e4b
 
 Backend
   ↓
@@ -63,10 +63,10 @@ pytest-asyncio
 ### 2.3 LLM Runtime
 
 ```text
-Ollama
-qwen3:14b
-POST /api/chat
-http://localhost:11434
+LiteRT-LM
+gemma4-e4b
+C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm
+litert_lm.Engine Python API
 ```
 
 ### 2.4 Harness
@@ -195,7 +195,7 @@ backend/app/llm/
 파일:
 
 ```text
-ollama_client.py
+litert_lm_client.py
 prompts.py
 translator.py
 ```
@@ -203,14 +203,14 @@ translator.py
 책임:
 
 ```text
-Ollama API 호출
+LiteRT-LM Engine 호출
 timeout / streaming 처리
 프롬프트 로딩
 chunk별 번역 실행
 모델 응답 정규화
 ```
 
-Ollama client에는 비즈니스 로직을 넣지 않는다.
+LiteRT-LM client에는 비즈니스 로직을 넣지 않는다.
 
 ### 4.4 Services
 
@@ -299,7 +299,7 @@ chunking
  ↓
 translation_chunks 생성
  ↓
-Ollama qwen3:14b 번역
+LiteRT-LM gemma4-e4b 번역
  ↓
 chunk별 번역 저장
  ↓
@@ -329,7 +329,7 @@ Glossary 적용
  ↓
 Prompt 구성
  ↓
-Ollama qwen3:14b 호출
+LiteRT-LM gemma4-e4b 호출
  ↓
 Chunk별 번역 저장
  ↓
@@ -349,7 +349,7 @@ api/routes → services → repositories → db/session
 api/routes → services → llm/client
 services → crawler
 services → chunker/glossary/cache
-llm/client → Ollama API
+llm/client → LiteRT-LM Engine
 repositories → SQLAlchemy/SQLite
 ```
 
@@ -357,9 +357,9 @@ repositories → SQLAlchemy/SQLite
 
 ```text
 Frontend → pixiv 직접 호출
-Frontend → Ollama 직접 호출
+Frontend → LiteRT-LM 직접 호출
 api/routes → DB 직접 SQL
 parser → network request
 chunker → LLM 호출
-ollama_client → DB 접근
+litert_lm_client → DB 접근
 ```

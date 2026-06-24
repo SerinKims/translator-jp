@@ -3,30 +3,29 @@
 ## 1. 기본 Runtime
 
 ```text
-LLM Runtime: Ollama
-Model: qwen3:14b
-Base URL: http://localhost:11434
-API: POST /api/chat
+LLM Runtime: LiteRT-LM
+Model: gemma4-e4b
+Model path: C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm
+API: litert_lm.Engine Python API
 ```
 
-Backend에서만 Ollama를 호출한다. Frontend에서 Ollama API를 직접 호출하지 않는다.
+Backend에서만 LiteRT-LM을 호출한다. Frontend에서 LiteRT-LM을 직접 호출하지 않는다.
 
 ---
 
-## 2. Ollama Client
+## 2. LiteRT-LM Client
 
 파일:
 
 ```text
-backend/app/llm/ollama_client.py
+backend/app/llm/litert_lm_client.py
 ```
 
 책임:
 
 ```text
-Ollama API 호출
+LiteRT-LM Engine 호출
 timeout 처리
-streaming 처리
 에러 응답 정규화
 모델명 주입
 응답 시간 측정
@@ -73,7 +72,7 @@ harness/prompts/
 기본 프롬프트:
 
 ```text
-harness/prompts/translate_v1.md
+harness/prompts/translate_ja_ko_v1.md
 ```
 
 기본 내용:

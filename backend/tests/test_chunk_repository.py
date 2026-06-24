@@ -14,7 +14,7 @@ def test_create_translation_chunk(db_session: Session) -> None:
         source_text="長い小説の本文です。",
         context_before="",
         context_after="次の段落",
-        prompt_used="translate_v1 prompt",
+        prompt_used="translate_ja_ko_v1 prompt",
     )
 
     assert chunk.id is not None
@@ -23,7 +23,7 @@ def test_create_translation_chunk(db_session: Session) -> None:
     assert chunk.source_text == "長い小説の本文です。"
     assert chunk.status == "pending"
     assert chunk.retry_count == 0
-    assert chunk.prompt_used == "translate_v1 prompt"
+    assert chunk.prompt_used == "translate_ja_ko_v1 prompt"
 
 
 def test_update_chunk_status(db_session: Session) -> None:

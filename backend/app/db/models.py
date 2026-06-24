@@ -63,8 +63,10 @@ class TranslationJob(TimestampMixin, Base):
     original_text: Mapped[str] = mapped_column(Text, nullable=False)
     translated_text: Mapped[str | None] = mapped_column(Text)
 
-    model_name: Mapped[str] = mapped_column(String, nullable=False, default="qwen3:14b")
-    prompt_version: Mapped[str] = mapped_column(String, nullable=False, default="translate_v1")
+    model_name: Mapped[str] = mapped_column(String, nullable=False, default="gemma4-e4b")
+    prompt_version: Mapped[str] = mapped_column(
+        String, nullable=False, default="translate_ja_ko_v1"
+    )
     style: Mapped[str] = mapped_column(String, nullable=False, default="webnovel")
     honorific_policy: Mapped[str] = mapped_column(String, nullable=False, default="preserve")
     preserve_names: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -273,11 +275,15 @@ class UserSettings(TimestampMixin, Base):
         default="preserve",
     )
     default_preserve_names: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    default_model_name: Mapped[str] = mapped_column(String, nullable=False, default="qwen3:14b")
+    default_model_name: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default="gemma4-e4b",
+    )
     default_prompt_version: Mapped[str] = mapped_column(
         String,
         nullable=False,
-        default="translate_v1",
+        default="translate_ja_ko_v1",
     )
     auto_use_glossary: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     auto_cache_enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

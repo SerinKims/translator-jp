@@ -56,8 +56,8 @@ def test_increment_cache_hit_count(db_session: Session) -> None:
     repository = CacheRepository(db_session)
     source_hash = make_source_hash(
         source_text="cache source",
-        model_name="qwen3:14b",
-        prompt_version="translate_v1",
+        model_name="gemma4-e4b",
+        prompt_version="translate_ja_ko_v1",
         style="webnovel",
         honorific_policy="preserve",
         preserve_names=True,
