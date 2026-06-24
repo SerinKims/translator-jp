@@ -42,7 +42,7 @@ pixiv 원문 전체
 사용자 수정/피드백 원문 전체
 ```
 
-이 프로젝트의 기본 LLM Runtime은 로컬 Ollama이다.
+이 프로젝트의 기본 LLM Runtime은 로컬 LiteRT-LM이다.
 
 ---
 

@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
     original_text TEXT NOT NULL,
     translated_text TEXT,
 
-    model_name TEXT NOT NULL DEFAULT 'qwen3:14b',
-    prompt_version TEXT NOT NULL DEFAULT 'translate_v1',
+    model_name TEXT NOT NULL DEFAULT 'gemma4-e4b',
+    prompt_version TEXT NOT NULL DEFAULT 'translate_ja_ko_v1',
 
     style TEXT NOT NULL DEFAULT 'webnovel',
     honorific_policy TEXT NOT NULL DEFAULT 'preserve',
@@ -226,8 +226,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
     default_honorific_policy TEXT NOT NULL DEFAULT 'preserve',
     default_preserve_names INTEGER NOT NULL DEFAULT 1,
 
-    default_model_name TEXT NOT NULL DEFAULT 'qwen3:14b',
-    default_prompt_version TEXT NOT NULL DEFAULT 'translate_v1',
+    default_model_name TEXT NOT NULL DEFAULT 'gemma4-e4b',
+    default_prompt_version TEXT NOT NULL DEFAULT 'translate_ja_ko_v1',
 
     auto_use_glossary INTEGER NOT NULL DEFAULT 1,
     auto_cache_enabled INTEGER NOT NULL DEFAULT 1,

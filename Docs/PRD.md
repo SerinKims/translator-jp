@@ -19,7 +19,7 @@
 → 접근 가능한 페이지에서 원문/제목/작가/작품 ID 수집
 → translation_jobs 생성
 → chunking
-→ qwen3:14b 번역
+→ gemma4-e4b 번역
 → chunk별 결과 저장
 → 전체 번역문 병합
 → Frontend에 결과 표시
@@ -34,7 +34,7 @@
 → chunking
 → glossary 적용
 → prompt 구성
-→ Ollama qwen3:14b 호출
+→ LiteRT-LM gemma4-e4b 호출
 → chunk별 결과 저장
 → 전체 번역문 병합
 → Frontend에 결과 표시
@@ -90,8 +90,8 @@
 ## 4. 비기능 요구사항
 
 - 로컬 LLM 기반으로 동작한다.
-- 기본 모델은 `qwen3:14b`이다.
-- Ollama API를 통해 모델을 호출한다.
+- 기본 모델은 `gemma4-e4b`이다.
+- LiteRT-LM Python API를 통해 모델을 호출한다.
 - 모델 API 장애 시 명확한 오류를 표시한다.
 - pixiv 수집 장애 시 명확한 오류를 표시한다.
 - 긴 입력은 자동 chunking 처리한다.
@@ -147,7 +147,7 @@ SQLite DB 초기화
 pixiv 단일 소설 URL validator
 pixiv 원문 수집 API
 직접 원문 번역 API
-Ollama qwen3:14b 호출
+LiteRT-LM gemma4-e4b 호출
 chunking
 translation_jobs / translation_chunks 저장
 기본 Frontend 입력/결과 화면
@@ -173,14 +173,14 @@ regression report 저장
 ```text
 pixiv 소설 URL에서 원문을 가져올 수 있다.
 가져온 원문이 translation_jobs에 저장된다.
-로컬에서 qwen3:14b로 일본어 → 한국어 번역이 가능하다.
+로컬에서 gemma4-e4b로 일본어 → 한국어 번역이 가능하다.
 긴 소설 텍스트도 chunk 단위로 안정적으로 번역된다.
 Frontend에서 pixiv URL 입력, 원문 수집, 번역 요청, 결과 확인이 가능하다.
 translation_jobs에 번역 작업과 source metadata가 저장된다.
 translation_chunks에 chunk별 결과가 저장된다.
 용어집을 적용할 수 있다.
 translation_cache로 중복 번역을 방지할 수 있다.
-/api/health로 Ollama와 DB 연결 상태를 확인할 수 있다.
+/api/health로 LiteRT-LM 실행 준비 상태와 DB 연결 상태를 확인할 수 있다.
 최소 10개 이상의 smoke case가 harness에서 실행된다.
 prompt 변경 시 regression report를 생성할 수 있다.
 Docs/DB.md와 실제 DB 구조가 일치한다.

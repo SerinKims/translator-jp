@@ -13,7 +13,7 @@ Accepted
 프롬프트는 파일로 관리하고, 번역 결과에는 prompt version을 저장한다.
 
 ```text
-harness/prompts/translate_v1.md
+harness/prompts/translate_ja_ko_v1.md
 ```
 
 프롬프트 또는 번역 품질에 영향을 주는 변경 후에는 하네스 평가를 수행한다.

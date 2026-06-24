@@ -16,13 +16,13 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./translation.db"
 
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3:14b"
-    ollama_timeout_seconds: float = 120.0
+    litert_lm_model_name: str = "gemma4-e4b"
+    litert_lm_model_path: Path = Path(r"C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm")
+    litert_lm_timeout_seconds: float = 120.0
 
     max_chars_per_chunk: int = 1800
     chunk_overlap_paragraphs: int = 1
-    prompt_version: str = "translate_v1"
+    prompt_version: str = "translate_ja_ko_v1"
 
     log_level: str = "INFO"
     save_raw_model_response: bool = True
@@ -34,11 +34,14 @@ class Settings(BaseSettings):
     pixiv_fetch_max_retries: int = 2
     pixiv_use_playwright: bool = False
 
-    ollama_connection_error_message: str = Field(
-        default="Ollama 서버에 연결할 수 없습니다. 로컬에서 Ollama가 실행 중인지 확인해주세요."
+    litert_lm_runtime_error_message: str = Field(
+        default="LiteRT-LM을 사용할 수 없습니다. backend requirements와 로컬 모델 파일을 확인해주세요."
     )
-    ollama_model_not_found_message: str = Field(
-        default="qwen3:14b 모델을 찾을 수 없습니다. ollama pull qwen3:14b 명령어로 모델을 설치해주세요."
+    litert_lm_model_not_found_message: str = Field(
+        default=(
+            "gemma4-e4b 모델 파일을 찾을 수 없습니다. "
+            "LITERT_LM_MODEL_PATH가 올바른지 확인해주세요."
+        )
     )
 
     model_config = SettingsConfigDict(

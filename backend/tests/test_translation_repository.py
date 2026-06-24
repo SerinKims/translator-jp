@@ -13,8 +13,8 @@ def test_create_translation_job(db_session: Session) -> None:
     assert job.id is not None
     assert job.original_text == "吾輩は猫である。"
     assert job.source_site == "manual"
-    assert job.model_name == "qwen3:14b"
-    assert job.prompt_version == "translate_v1"
+    assert job.model_name == "gemma4-e4b"
+    assert job.prompt_version == "translate_ja_ko_v1"
     assert job.style == "webnovel"
     assert job.honorific_policy == "preserve"
     assert job.preserve_names == 1

@@ -19,8 +19,8 @@ GET /api/health
 
 ```text
 Backend 정상 여부 확인
-Ollama 연결 여부 확인
-qwen3:14b 모델 사용 가능 여부 확인
+LiteRT-LM 사용 가능 여부 확인
+gemma4-e4b 모델 파일 사용 가능 여부 확인
 DB 연결 여부 확인
 ```
 
@@ -29,9 +29,9 @@ Response:
 ```json
 {
   "status": "ok",
-  "ollama": "ok",
+  "litert_lm": "ok",
   "database": "ok",
-  "model": "qwen3:14b"
+  "model": "gemma4-e4b"
 }
 ```
 
@@ -99,8 +99,8 @@ Response:
   "title": "作品タイトル",
   "author": "作者名",
   "translated_text": "한국어 번역문...",
-  "model": "qwen3:14b",
-  "prompt_version": "translate_v1",
+  "model": "gemma4-e4b",
+  "prompt_version": "translate_ja_ko_v1",
   "elapsed_ms": 1234,
   "chunks": [
     {
@@ -139,8 +139,8 @@ Response:
 {
   "job_id": 1,
   "translated_text": "한국어 번역문",
-  "model": "qwen3:14b",
-  "prompt_version": "translate_v1",
+  "model": "gemma4-e4b",
+  "prompt_version": "translate_ja_ko_v1",
   "style": "webnovel",
   "elapsed_ms": 1234,
   "cache_hit": false,
