@@ -18,7 +18,7 @@ def test_prompt_file_loads_by_prompt_version() -> None:
 def test_legacy_translate_ja_ko_v1_loads_ja_ko_prompt() -> None:
     prompt = load_prompt("translate_ja_ko_v1")
 
-    assert "일본어 특유의 말투" in prompt
+    assert "존댓말, 반말, 호칭, 거리감을 원문 관계에 맞게 유지합니다." in prompt
 
 
 def test_missing_prompt_version_returns_clear_error() -> None:
