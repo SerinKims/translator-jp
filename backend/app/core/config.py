@@ -39,8 +39,7 @@ class Settings(BaseSettings):
     )
     litert_lm_model_not_found_message: str = Field(
         default=(
-            "gemma4-e4b 모델 파일을 찾을 수 없습니다. "
-            "LITERT_LM_MODEL_PATH가 올바른지 확인해주세요."
+            "gemma4-e4b 모델 파일을 찾을 수 없습니다. LITERT_LM_MODEL_PATH가 올바른지 확인해주세요."
         )
     )
 

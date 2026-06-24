@@ -83,7 +83,9 @@ class PromptLoader:
         )
         definition = _PROMPT_DEFINITIONS.get((source_lang, target_lang, selected_version))
         if definition is None:
-            raise PromptNotFoundError(f"Prompt version '{prompt_version or selected_version}' not found.")
+            raise PromptNotFoundError(
+                f"Prompt version '{prompt_version or selected_version}' not found."
+            )
 
         prompt_path = self.prompt_dir / definition.filename
         if not prompt_path.is_file():
