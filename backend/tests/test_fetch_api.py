@@ -78,6 +78,8 @@ def test_fetch_service_saves_pixiv_result_to_translation_jobs(
         assert saved.source_work_id == "12345678"
         assert saved.original_text == result.text
         assert saved.status == "fetched"
+        assert saved.ollama_think == "false"
+        assert saved.ollama_options_json is None
 
     asyncio.run(run_test())
 
@@ -112,6 +114,79 @@ def test_fetch_pixiv_api_returns_saved_result(db_session: Session) -> None:
         "char_count": len(TEXT),
         "job_id": 1,
     }
+
+
+def test_fetch_pixiv_api_accepts_ollama_options(db_session: Session) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_fetch_service] = lambda: FetchService(
+        db_session,
+        pixiv_client=FakePixivClient(),
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/fetch/pixiv",
+            json={
+                "url": "https://www.pixiv.net/novel/show.php?id=12345678",
+                "translate_after_fetch": True,
+                "think": "low",
+                "options": {"temperature": 0.2, "max_tokens": 2048},
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    saved = db_session.get(TranslationJob, 1)
+    assert saved is not None
+    assert saved.status == "pending_translation"
+    assert saved.ollama_think == '"low"'
+    assert saved.ollama_options_json == '{"max_tokens": 2048, "temperature": 0.2}'
+
+
+def test_fetch_pixiv_api_rejects_invalid_ollama_think(db_session: Session) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_fetch_service] = lambda: FetchService(
+        db_session,
+        pixiv_client=FakePixivClient(),
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/fetch/pixiv",
+            json={
+                "url": "https://www.pixiv.net/novel/show.php?id=12345678",
+                "think": 1,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+
+
+def test_fetch_pixiv_api_rejects_invalid_ollama_options(db_session: Session) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_fetch_service] = lambda: FetchService(
+        db_session,
+        pixiv_client=FakePixivClient(),
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/fetch/pixiv",
+            json={
+                "url": "https://www.pixiv.net/novel/show.php?id=12345678",
+                "options": ["temperature", 0.2],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
 
 
 def test_fetch_pixiv_api_rejects_invalid_url(db_session: Session) -> None:

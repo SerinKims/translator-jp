@@ -1,11 +1,11 @@
 # translator-jp
 
-로컬 LiteRT-LM의 `gemma4-e4b` 모델을 사용해 일본어 원문 또는 pixiv 소설 단건 URL의 원문을 한국어 웹소설 문체로 번역하는 로컬 웹사이트입니다.
+로컬 Ollama의 `gemma4:26b-a4b-it-q4_K_M` 모델을 사용해 일본어 원문 또는 pixiv 소설 단건 URL의 원문을 한국어 웹소설 문체로 번역하는 로컬 웹사이트입니다.
 
 ## 원칙
 
 - Docker는 사용하지 않습니다.
-- Frontend는 pixiv 또는 LiteRT-LM을 직접 호출하지 않습니다.
+- Frontend는 pixiv 또는 Ollama를 직접 호출하지 않습니다.
 - 프롬프트는 코드에 하드코딩하지 않고 `harness/prompts/`에서 관리합니다.
 - DB 구조는 `Docs/DB.md`와 `backend/app/db/schema.sql`을 기준으로 합니다.
 - pixiv 수집은 사용자가 입력한 단건 소설 상세 URL만 처리합니다.
@@ -65,7 +65,7 @@ Harness smoke:
 python harness/run_eval.py \
   --dataset harness/datasets/smoke_cases.jsonl \
   --prompt harness/prompts/translate_ja_ko_v1.md \
-  --model gemma4-e4b
+  --model gemma4:26b-a4b-it-q4_K_M
 ```
 
 Harness regression:
@@ -74,6 +74,6 @@ Harness regression:
 python harness/run_eval.py \
   --dataset harness/datasets/golden_ja_ko.jsonl \
   --prompt harness/prompts/translate_ja_ko_v1.md \
-  --model gemma4-e4b \
+  --model gemma4:26b-a4b-it-q4_K_M \
   --output harness/reports/latest.json
 ```

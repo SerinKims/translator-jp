@@ -6,8 +6,8 @@
 
 ```text
 Backend 정상 여부
-LiteRT-LM 사용 가능 여부
-gemma4-e4b 모델 파일 사용 가능 여부
+Ollama 사용 가능 여부
+gemma4:26b-a4b-it-q4_K_M 모델 사용 가능 여부
 DB 연결 여부
 ```
 
@@ -21,9 +21,9 @@ DB 연결 여부
 | Pixiv 수집 실패 | pixiv 원문을 가져오지 못했습니다. URL을 확인하거나 원문을 직접 입력해주세요. | `PIXIV_FETCH_FAILED` |
 | Pixiv 접근 제한 | 해당 pixiv 페이지에 접근할 수 없습니다. 브라우저에서 열람 가능한 페이지인지 확인해주세요. | `PIXIV_ACCESS_DENIED` |
 | Pixiv 원문 추출 실패 | 페이지는 열렸지만 소설 원문을 찾지 못했습니다. 원문을 직접 입력해주세요. | `PIXIV_PARSE_FAILED` |
-| LiteRT-LM 사용 불가 | LiteRT-LM을 사용할 수 없습니다. backend requirements와 로컬 모델 파일을 확인해주세요. | `LITERT_LM_RUNTIME_ERROR` |
-| 모델 파일 없음 | gemma4-e4b 모델 파일을 찾을 수 없습니다. LITERT_LM_MODEL_PATH가 올바른지 확인해주세요. | `LITERT_LM_MODEL_NOT_FOUND` |
-| Timeout | 번역 시간이 너무 오래 걸렸습니다. 입력 문장을 줄이거나 다시 시도해주세요. | `LITERT_LM_TIMEOUT` |
+| Ollama 사용 불가 | Ollama를 사용할 수 없습니다. backend requirements와 로컬 Ollama 실행 상태를 확인해주세요. | `OLLAMA_RUNTIME_ERROR` |
+| 모델 없음 | gemma4:26b-a4b-it-q4_K_M 모델을 찾을 수 없습니다. ollama pull 명령으로 모델을 준비해주세요. | `OLLAMA_MODEL_NOT_FOUND` |
+| Timeout | 번역 시간이 너무 오래 걸렸습니다. 입력 문장을 줄이거나 다시 시도해주세요. | `OLLAMA_TIMEOUT` |
 | Empty Response | 모델이 빈 응답을 반환했습니다. 다시 시도해주세요. | `EMPTY_MODEL_RESPONSE` |
 | DB Error | 번역 결과 저장 중 문제가 발생했습니다. 다시 시도해주세요. | `DATABASE_ERROR` |
 
@@ -62,7 +62,7 @@ DB 연결 여부
 Mac M1 환경에서는 다음을 우선 적용한다.
 
 ```text
-LiteRT-LM 로컬 모델 파일 확인
+Ollama 로컬 모델 확인
 num_ctx를 과도하게 크게 설정하지 않기
 긴 소설은 문단 단위로 나누어 번역
 프롬프트를 짧고 명확하게 유지

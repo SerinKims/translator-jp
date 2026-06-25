@@ -123,7 +123,7 @@ DB 구조의 세부 기준은 `Docs/DB.md`를 따른다.
 python harness/run_eval.py \
   --dataset harness/datasets/smoke_cases.jsonl \
   --prompt harness/prompts/translate_ja_ko_v1.md \
-  --model gemma4-e4b
+  --model gemma4:26b-a4b-it-q4_K_M
 ```
 
 ### 8.2 Regression Test
@@ -132,6 +132,6 @@ python harness/run_eval.py \
 python harness/run_eval.py \
   --dataset harness/datasets/golden_ja_ko.jsonl \
   --prompt harness/prompts/translate_ja_ko_v1.md \
-  --model gemma4-e4b \
+  --model gemma4:26b-a4b-it-q4_K_M \
   --output harness/reports/latest.json
 ```

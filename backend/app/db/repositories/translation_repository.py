@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,8 +27,10 @@ class TranslationRepository:
         source_work_id: str | None = None,
         source_fetched_at: datetime | None = None,
         translated_text: str | None = None,
-        model_name: str = "gemma4-e4b",
+        model_name: str = "gemma4:26b-a4b-it-q4_K_M",
         prompt_version: str = "translate_ja_ko_v1",
+        ollama_think: str | bool = False,
+        ollama_options: dict[str, Any] | None = None,
         style: str = "webnovel",
         honorific_policy: str = "preserve",
         preserve_names: bool = True,
@@ -50,6 +54,8 @@ class TranslationRepository:
             translated_text=translated_text,
             model_name=model_name,
             prompt_version=prompt_version,
+            ollama_think=_serialize_ollama_think(ollama_think),
+            ollama_options_json=_serialize_ollama_options(ollama_options),
             style=style,
             honorific_policy=honorific_policy,
             preserve_names=int(preserve_names),
@@ -111,3 +117,13 @@ class TranslationRepository:
         self.db.commit()
         self.db.refresh(job)
         return job
+
+
+def _serialize_ollama_think(value: str | bool) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _serialize_ollama_options(options: dict[str, Any] | None) -> str | None:
+    if options is None:
+        return None
+    return json.dumps(options, ensure_ascii=False, sort_keys=True)

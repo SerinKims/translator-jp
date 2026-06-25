@@ -3,28 +3,28 @@
 ## 1. 기본 Runtime
 
 ```text
-LLM Runtime: LiteRT-LM
-Model: gemma4-e4b
-Model path: C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm
-API: litert_lm.Engine Python API
+LLM Runtime: Ollama
+Model: gemma4:26b-a4b-it-q4_K_M
+Model source: local Ollama model registry
+API: ollama.chat Python API
 ```
 
-Backend에서만 LiteRT-LM을 호출한다. Frontend에서 LiteRT-LM을 직접 호출하지 않는다.
+Backend에서만 Ollama를 호출한다. Frontend에서 Ollama를 직접 호출하지 않는다.
 
 ---
 
-## 2. LiteRT-LM Client
+## 2. Ollama Client
 
 파일:
 
 ```text
-backend/app/llm/litert_lm_client.py
+backend/app/llm/ollama_client.py
 ```
 
 책임:
 
 ```text
-LiteRT-LM Engine 호출
+ollama.chat 호출
 timeout 처리
 에러 응답 정규화
 모델명 주입
@@ -32,6 +32,15 @@ timeout 처리
 ```
 
 비즈니스 로직은 넣지 않는다.
+
+Ollama 호출 옵션:
+
+```text
+think: str 또는 bool
+options: dict
+```
+
+`think`와 `options`는 사용자 요청 또는 호출자가 직접 지정할 수 있다. `think` 기본값은 `False`이고, `options`를 지정하지 않으면 Ollama 기본값을 사용하도록 `None`으로 전달한다.
 
 ---
 
