@@ -124,6 +124,59 @@ Response:
 POST /api/translate
 ```
 
+MVP implementation contract:
+
+```json
+{
+  "text": "貼り付けた日本語の原文...",
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "translate_scope": "first_page",
+  "page_index": 0,
+  "style": "webnovel",
+  "honorific_policy": "preserve",
+  "preserve_names": true,
+  "use_glossary": true,
+  "use_cache": true,
+  "stream": false,
+  "think": false,
+  "options": null
+}
+```
+
+Defaults are `source_lang=ja`, `target_lang=ko`, `translate_scope=first_page`,
+`page_index=0`, `style=webnovel`, `honorific_policy=preserve`,
+`preserve_names=true`, `use_glossary=true`, `use_cache=true`, and `stream=false`.
+`stream=true` is not supported in the MVP.
+
+The response includes pasted-text metadata:
+
+```json
+{
+  "job_id": 1,
+  "source_type": "pasted_text",
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "current_page_index": 0,
+  "total_pages": 1,
+  "has_next_page": false,
+  "translated_text": "한국어 번역문...",
+  "model": "gemma4:26b-a4b-it-q4_K_M",
+  "prompt_version": "translate_ja_ko_v1",
+  "style": "webnovel",
+  "elapsed_ms": 1234,
+  "cache_hit": false,
+  "chunks": [
+    {
+      "index": 0,
+      "source_lang": "ja",
+      "target_lang": "ko",
+      "status": "completed"
+    }
+  ]
+}
+```
+
 Request:
 
 ```json

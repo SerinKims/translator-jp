@@ -43,7 +43,7 @@ class TranslationJob(TimestampMixin, Base):
         CheckConstraint(
             "status IN ("
             "'pending', 'fetched', 'pending_translation', "
-            "'running', 'completed', 'failed', 'cancelled'"
+            "'running', 'completed', 'partial_failed', 'failed', 'cancelled'"
             ")",
             name="ck_translation_jobs_status",
         ),
