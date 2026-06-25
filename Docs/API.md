@@ -19,8 +19,8 @@ GET /api/health
 
 ```text
 Backend 정상 여부 확인
-LiteRT-LM 사용 가능 여부 확인
-gemma4-e4b 모델 파일 사용 가능 여부 확인
+Ollama 사용 가능 여부 확인
+gemma4:26b-a4b-it-q4_K_M 모델 사용 가능 여부 확인
 DB 연결 여부 확인
 ```
 
@@ -29,9 +29,9 @@ Response:
 ```json
 {
   "status": "ok",
-  "litert_lm": "ok",
+  "ollama": "ok",
   "database": "ok",
-  "model": "gemma4-e4b"
+  "model": "gemma4:26b-a4b-it-q4_K_M"
 }
 ```
 
@@ -84,7 +84,12 @@ Request:
   "honorific_policy": "preserve",
   "preserve_names": true,
   "use_glossary": true,
-  "use_cache": true
+  "use_cache": true,
+  "think": "low",
+  "options": {
+    "temperature": 0.2,
+    "max_tokens": 2048
+  }
 }
 ```
 
@@ -99,7 +104,7 @@ Response:
   "title": "作品タイトル",
   "author": "作者名",
   "translated_text": "한국어 번역문...",
-  "model": "gemma4-e4b",
+  "model": "gemma4:26b-a4b-it-q4_K_M",
   "prompt_version": "translate_ja_ko_v1",
   "elapsed_ms": 1234,
   "chunks": [
@@ -129,7 +134,12 @@ Request:
   "preserve_names": true,
   "use_glossary": true,
   "use_cache": true,
-  "stream": false
+  "stream": false,
+  "think": false,
+  "options": {
+    "temperature": 0.2,
+    "max_tokens": 2048
+  }
 }
 ```
 
@@ -139,7 +149,7 @@ Response:
 {
   "job_id": 1,
   "translated_text": "한국어 번역문",
-  "model": "gemma4-e4b",
+  "model": "gemma4:26b-a4b-it-q4_K_M",
   "prompt_version": "translate_ja_ko_v1",
   "style": "webnovel",
   "elapsed_ms": 1234,

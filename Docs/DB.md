@@ -1,8 +1,8 @@
-﻿# DB
+# DB
 
 ## 1. 개요
 
-이 문서는 `gemma4-e4b` 모델을 사용한 일본어 → 한국어 웹소설 번역 사이트의 데이터베이스 구조를 정의한다.
+이 문서는 `gemma4:26b-a4b-it-q4_K_M` 모델을 사용한 일본어 → 한국어 웹소설 번역 사이트의 데이터베이스 구조를 정의한다.
 
 이 프로젝트는 다음 두 가지 방식으로 원문을 입력받는다.
 
@@ -125,6 +125,8 @@ erDiagram
 
         text model_name
         text prompt_version
+        text ollama_think
+        text ollama_options_json
         text style
         text honorific_policy
         integer preserve_names
@@ -367,8 +369,10 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
     translated_text TEXT,
 
     -- 모델 / 프롬프트 정보
-    model_name TEXT NOT NULL DEFAULT 'gemma4-e4b',
+    model_name TEXT NOT NULL DEFAULT 'gemma4:26b-a4b-it-q4_K_M',
     prompt_version TEXT NOT NULL DEFAULT 'translate_ja_ko_v1',
+    ollama_think TEXT,
+    ollama_options_json TEXT,
 
     -- 번역 옵션
     style TEXT NOT NULL DEFAULT 'webnovel',
@@ -425,14 +429,18 @@ INSERT INTO translation_jobs (
     original_text,
     model_name,
     prompt_version,
+    ollama_think,
+    ollama_options_json,
     style,
     status
 )
 VALUES (
     'manual',
     '彼は静かに笑った。',
-    'gemma4-e4b',
+    'gemma4:26b-a4b-it-q4_K_M',
     'translate_ja_ko_v1',
+    'false',
+    NULL,
     'webnovel',
     'pending'
 );
@@ -464,6 +472,8 @@ INSERT INTO translation_jobs (
     original_text,
     model_name,
     prompt_version,
+    ollama_think,
+    ollama_options_json,
     style,
     status
 )
@@ -475,8 +485,10 @@ VALUES (
     '12345678',
     CURRENT_TIMESTAMP,
     '小説本文...',
-    'gemma4-e4b',
+    'gemma4:26b-a4b-it-q4_K_M',
     'translate_ja_ko_v1',
+    '"low"',
+    '{"max_tokens": 2048, "temperature": 0.2}',
     'webnovel',
     'pending'
 );
@@ -1041,7 +1053,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
     default_honorific_policy TEXT NOT NULL DEFAULT 'preserve',
     default_preserve_names INTEGER NOT NULL DEFAULT 1,
 
-    default_model_name TEXT NOT NULL DEFAULT 'gemma4-e4b',
+    default_model_name TEXT NOT NULL DEFAULT 'gemma4:26b-a4b-it-q4_K_M',
     default_prompt_version TEXT NOT NULL DEFAULT 'translate_ja_ko_v1',
 
     auto_use_glossary INTEGER NOT NULL DEFAULT 1,
@@ -1229,8 +1241,10 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
     original_text TEXT NOT NULL,
     translated_text TEXT,
 
-    model_name TEXT NOT NULL DEFAULT 'gemma4-e4b',
+    model_name TEXT NOT NULL DEFAULT 'gemma4:26b-a4b-it-q4_K_M',
     prompt_version TEXT NOT NULL DEFAULT 'translate_ja_ko_v1',
+    ollama_think TEXT,
+    ollama_options_json TEXT,
 
     style TEXT NOT NULL DEFAULT 'webnovel',
     honorific_policy TEXT NOT NULL DEFAULT 'preserve',
@@ -1429,7 +1443,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
     default_honorific_policy TEXT NOT NULL DEFAULT 'preserve',
     default_preserve_names INTEGER NOT NULL DEFAULT 1,
 
-    default_model_name TEXT NOT NULL DEFAULT 'gemma4-e4b',
+    default_model_name TEXT NOT NULL DEFAULT 'gemma4:26b-a4b-it-q4_K_M',
     default_prompt_version TEXT NOT NULL DEFAULT 'translate_ja_ko_v1',
 
     auto_use_glossary INTEGER NOT NULL DEFAULT 1,
@@ -1563,6 +1577,12 @@ ADD COLUMN source_work_id TEXT;
 
 ALTER TABLE translation_jobs
 ADD COLUMN source_fetched_at DATETIME;
+
+ALTER TABLE translation_jobs
+ADD COLUMN ollama_think TEXT;
+
+ALTER TABLE translation_jobs
+ADD COLUMN ollama_options_json TEXT;
 ```
 
 인덱스도 함께 추가한다.
@@ -1629,6 +1649,8 @@ chunk별 번역 결과
 pixiv source metadata
 모델명
 프롬프트 버전
+Ollama think 설정
+Ollama options JSON
 번역 옵션
 오류 메시지
 응답 시간
@@ -1807,8 +1829,10 @@ completed
   "source_work_id": "12345678",
   "source_preview": "小説本文...",
   "translated_preview": "소설 본문...",
-  "model_name": "gemma4-e4b",
+  "model_name": "gemma4:26b-a4b-it-q4_K_M",
   "prompt_version": "translate_ja_ko_v1",
+  "ollama_think": "\"low\"",
+  "ollama_options_json": "{\"max_tokens\": 2048, \"temperature\": 0.2}",
   "status": "completed",
   "created_at": "2026-06-22T10:00:00"
 }
@@ -1828,8 +1852,10 @@ completed
   "source_work_id": null,
   "source_preview": "彼は静かに笑った。",
   "translated_preview": "그는 조용히 웃었다.",
-  "model_name": "gemma4-e4b",
+  "model_name": "gemma4:26b-a4b-it-q4_K_M",
   "prompt_version": "translate_ja_ko_v1",
+  "ollama_think": "false",
+  "ollama_options_json": null,
   "status": "completed",
   "created_at": "2026-06-22T10:05:00"
 }
@@ -1844,7 +1870,7 @@ golden_ja_ko.jsonl
   ↓
 harness 실행
   ↓
-gemma4-e4b 번역
+gemma4:26b-a4b-it-q4_K_M 번역
   ↓
 rule-based evaluator
   ↓

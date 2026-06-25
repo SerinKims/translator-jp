@@ -57,7 +57,7 @@ chunk 진행 상태
 번역 중에는 번역 버튼을 비활성화한다.
 긴 텍스트 번역 중에는 진행 상태를 표시한다.
 API 오류는 사용자가 이해할 수 있는 메시지로 보여준다.
-LiteRT-LM을 사용할 수 없으면 명확히 안내한다.
+Ollama을 사용할 수 없으면 명확히 안내한다.
 모델이 없으면 설치 명령을 안내한다.
 pixiv URL이 잘못되었으면 올바른 예시를 보여준다.
 pixiv 원문 수집에 실패하면 직접 원문 입력을 안내한다.
@@ -69,11 +69,11 @@ pixiv 원문 수집에 실패하면 직접 원문 입력을 안내한다.
 ## 5. 사용자 메시지 예시
 
 ```text
-LiteRT-LM을 사용할 수 없습니다. backend requirements와 로컬 모델 파일을 확인해주세요.
+Ollama를 사용할 수 없습니다. backend requirements와 로컬 Ollama 실행 상태를 확인해주세요.
 ```
 
 ```text
-gemma4-e4b 모델 파일을 찾을 수 없습니다. LITERT_LM_MODEL_PATH가 올바른지 확인해주세요.
+gemma4:26b-a4b-it-q4_K_M 모델을 찾을 수 없습니다. ollama pull 명령으로 모델을 준비해주세요.
 ```
 
 ```text
@@ -92,7 +92,7 @@ Frontend는 다음 API를 직접 호출하지 않는다.
 
 ```text
 pixiv
-LiteRT-LM
+Ollama
 ```
 
 모든 수집/번역 작업은 Backend API를 통해 수행한다.

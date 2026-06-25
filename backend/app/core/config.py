@@ -16,9 +16,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./translation.db"
 
-    litert_lm_model_name: str = "gemma4-e4b"
-    litert_lm_model_path: Path = Path(r"C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm")
-    litert_lm_timeout_seconds: float = 120.0
+    ollama_model_name: str = "gemma4:26b-a4b-it-q4_K_M"
+    ollama_timeout_seconds: float = 120.0
+    ollama_health_timeout_seconds: float = 3.0
 
     max_chars_per_chunk: int = 1800
     chunk_overlap_paragraphs: int = 1
@@ -34,12 +34,12 @@ class Settings(BaseSettings):
     pixiv_fetch_max_retries: int = 2
     pixiv_use_playwright: bool = False
 
-    litert_lm_runtime_error_message: str = Field(
-        default="LiteRT-LM을 사용할 수 없습니다. backend requirements와 로컬 모델 파일을 확인해주세요."
+    ollama_runtime_error_message: str = Field(
+        default="Ollama를 사용할 수 없습니다. backend requirements와 로컬 Ollama 실행 상태를 확인해주세요."
     )
-    litert_lm_model_not_found_message: str = Field(
+    ollama_model_not_found_message: str = Field(
         default=(
-            "gemma4-e4b 모델 파일을 찾을 수 없습니다. LITERT_LM_MODEL_PATH가 올바른지 확인해주세요."
+            "gemma4:26b-a4b-it-q4_K_M 모델을 찾을 수 없습니다. ollama pull 명령으로 모델을 준비해주세요."
         )
     )
 

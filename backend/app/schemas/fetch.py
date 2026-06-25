@@ -1,7 +1,9 @@
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.translation import OllamaRequestOptions
 
-class PixivFetchRequest(BaseModel):
+
+class PixivFetchRequest(OllamaRequestOptions):
     url: str
     translate_after_fetch: bool = False
 

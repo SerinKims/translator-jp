@@ -24,6 +24,8 @@ async def fetch_pixiv(
         return await service.fetch_pixiv(
             url=request.url,
             translate_after_fetch=request.translate_after_fetch,
+            think=request.think,
+            options=request.options,
         )
     except FetchServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

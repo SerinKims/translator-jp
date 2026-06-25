@@ -13,8 +13,10 @@ def test_create_translation_job(db_session: Session) -> None:
     assert job.id is not None
     assert job.original_text == "吾輩は猫である。"
     assert job.source_site == "manual"
-    assert job.model_name == "gemma4-e4b"
+    assert job.model_name == "gemma4:26b-a4b-it-q4_K_M"
     assert job.prompt_version == "translate_ja_ko_v1"
+    assert job.ollama_think == "false"
+    assert job.ollama_options_json is None
     assert job.style == "webnovel"
     assert job.honorific_policy == "preserve"
     assert job.preserve_names == 1
@@ -44,3 +46,16 @@ def test_create_translation_job_with_pixiv_source_metadata(db_session: Session) 
     assert saved.source_author == "作者名"
     assert saved.source_work_id == "12345678"
     assert saved.source_fetched_at == fetched_at
+
+
+def test_create_translation_job_with_ollama_options(db_session: Session) -> None:
+    repository = TranslationRepository(db_session)
+
+    job = repository.create_job(
+        original_text="原文",
+        ollama_think="low",
+        ollama_options={"temperature": 0.2, "max_tokens": 2048},
+    )
+
+    assert job.ollama_think == '"low"'
+    assert job.ollama_options_json == '{"max_tokens": 2048, "temperature": 0.2}'

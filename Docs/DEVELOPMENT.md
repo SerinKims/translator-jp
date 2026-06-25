@@ -59,7 +59,7 @@ feat: add pixiv novel parser
 feat: add translation api
 feat: add glossary repository
 fix: handle pixiv fetch timeout
-fix: handle litert-lm timeout
+fix: handle ollama timeout
 test: add pixiv url validator tests
 test: add glossary regression cases
 refactor: split pixiv parser
@@ -78,9 +78,9 @@ APP_ENV=local
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 
-LITERT_LM_MODEL_NAME=gemma4-e4b
-LITERT_LM_MODEL_PATH=C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm
-LITERT_LM_TIMEOUT_SECONDS=120
+OLLAMA_MODEL_NAME=gemma4:26b-a4b-it-q4_K_M
+OLLAMA_TIMEOUT_SECONDS=120
+OLLAMA_HEALTH_TIMEOUT_SECONDS=3
 
 MAX_CHARS_PER_CHUNK=1800
 CHUNK_OVERLAP_PARAGRAPHS=1
@@ -104,16 +104,16 @@ PIXIV_USE_PLAYWRIGHT=false
 
 ## 6. 명령어
 
-### 6.1 모델 파일 확인
+### 6.1 Ollama 모델 확인
 
 ```powershell
-dir C:\Users\USER\.litert-lm\models\gemma4-e4b\model.litertlm
+ollama list
 ```
 
-### 6.2 LiteRT-LM 패키지 확인
+### 6.2 Ollama 패키지 확인
 
 ```powershell
-python -c "import litert_lm; print('litert_lm ok')"
+python -c "import ollama; print('ollama ok')"
 ```
 
 ### 6.3 Backend 가상환경 생성
@@ -191,12 +191,12 @@ cd backend
 pytest -q
 ```
 
-LiteRT-LM 실제 모델 스모크 테스트:
+Ollama 실제 모델 스모크 테스트:
 
 ```powershell
 cd backend
-$env:RUN_LITERT_LM_SMOKE = "1"
-pytest tests/test_litert_lm_translation_result.py -q -s
+$env:RUN_OLLAMA_SMOKE = "1"
+pytest tests/test_ollama_translation_result.py -q -s
 ```
 
 ### 6.11 특정 테스트 실행
@@ -260,7 +260,7 @@ repository
 /api/translate
 /api/translations
 /api/glossary
-LiteRT-LM 실행
+Ollama 실행
 DB 저장
 긴 텍스트 번역
 chunk 재시도

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
@@ -46,6 +46,8 @@ class FetchService:
         *,
         url: str,
         translate_after_fetch: bool = False,
+        think: str | bool = False,
+        options: dict[str, Any] | None = None,
     ) -> PixivFetchResponse:
         try:
             source = validate_pixiv_novel_url(url)
@@ -88,6 +90,8 @@ class FetchService:
             source_work_id=novel.source_work_id,
             source_fetched_at=datetime.now(timezone.utc),
             original_text=novel.text,
+            ollama_think=think,
+            ollama_options=options,
             status=status,
         )
 

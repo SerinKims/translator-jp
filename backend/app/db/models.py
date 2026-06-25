@@ -63,10 +63,14 @@ class TranslationJob(TimestampMixin, Base):
     original_text: Mapped[str] = mapped_column(Text, nullable=False)
     translated_text: Mapped[str | None] = mapped_column(Text)
 
-    model_name: Mapped[str] = mapped_column(String, nullable=False, default="gemma4-e4b")
+    model_name: Mapped[str] = mapped_column(
+        String, nullable=False, default="gemma4:26b-a4b-it-q4_K_M"
+    )
     prompt_version: Mapped[str] = mapped_column(
         String, nullable=False, default="translate_ja_ko_v1"
     )
+    ollama_think: Mapped[str | None] = mapped_column(Text)
+    ollama_options_json: Mapped[str | None] = mapped_column(Text)
     style: Mapped[str] = mapped_column(String, nullable=False, default="webnovel")
     honorific_policy: Mapped[str] = mapped_column(String, nullable=False, default="preserve")
     preserve_names: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -278,7 +282,7 @@ class UserSettings(TimestampMixin, Base):
     default_model_name: Mapped[str] = mapped_column(
         String,
         nullable=False,
-        default="gemma4-e4b",
+        default="gemma4:26b-a4b-it-q4_K_M",
     )
     default_prompt_version: Mapped[str] = mapped_column(
         String,
