@@ -18,9 +18,7 @@ OLLAMA_MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 OLLAMA_IMPORT_ERROR_MESSAGE = (
     "ollama 패키지를 불러올 수 없습니다. backend requirements를 설치해주세요."
 )
-OLLAMA_TIMEOUT_MESSAGE = (
-    "번역 시간이 너무 오래 걸렸습니다. 입력 문장을 줄이거나 다시 시도해주세요."
-)
+OLLAMA_TIMEOUT_MESSAGE = "번역 시간이 너무 오래 걸렸습니다. 입력 문장을 줄이거나 다시 시도해주세요."
 OLLAMA_EMPTY_RESPONSE_MESSAGE = "모델이 빈 응답을 반환했습니다. 다시 시도해주세요."
 OLLAMA_INVALID_OPTIONS_MESSAGE = "Ollama options는 dict 형식이어야 합니다."
 OLLAMA_INVALID_THINK_MESSAGE = "Ollama think는 str 또는 bool 형식이어야 합니다."
