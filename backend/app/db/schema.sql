@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
             'pending_translation',
             'running',
             'completed',
+            'partial_failed',
             'failed',
             'cancelled'
         )),
