@@ -2,78 +2,22 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.db.models import TranslationCache
 from app.db.repositories.cache_repository import CacheRepository
-
-
-@dataclass(frozen=True)
-class SelectedGlossaryTerm:
-    source_term: str
-    target_term: str
-    term_type: str
-    description: str | None
-    is_case_sensitive: bool
+from app.services.glossary import (
+    SelectedGlossaryTerm as SelectedGlossaryTerm,
+    make_selected_glossary_hash as make_selected_glossary_hash,
+    make_selected_glossary_hash_for_text as make_selected_glossary_hash_for_text,
+    select_glossary_terms_for_text as select_glossary_terms_for_text,
+)
 
 
 def make_source_text_hash(source_text: str) -> str:
     return _sha256_hex(source_text)
-
-
-def select_glossary_terms_for_text(
-    source_text: str,
-    glossary_terms: Iterable[Any],
-) -> list[SelectedGlossaryTerm]:
-    selected: list[SelectedGlossaryTerm] = []
-    for term in glossary_terms:
-        selected_term = _to_selected_term(term)
-        if not selected_term.source_term:
-            continue
-        haystack = source_text if selected_term.is_case_sensitive else source_text.lower()
-        needle = (
-            selected_term.source_term
-            if selected_term.is_case_sensitive
-            else selected_term.source_term.lower()
-        )
-        if needle in haystack:
-            selected.append(selected_term)
-
-    return sorted(
-        selected,
-        key=lambda item: (
-            item.source_term,
-            item.target_term,
-            item.term_type,
-            item.description or "",
-            item.is_case_sensitive,
-        ),
-    )
-
-
-def make_selected_glossary_hash(selected_terms: Iterable[Any]) -> str:
-    normalized = [_term_to_cache_dict(_to_selected_term(term)) for term in selected_terms]
-    normalized.sort(
-        key=lambda item: (
-            item["source_term"],
-            item["target_term"],
-            item["term_type"],
-            item["description"] or "",
-            item["is_case_sensitive"],
-        )
-    )
-    return _sha256_json(normalized)
-
-
-def make_selected_glossary_hash_for_text(
-    source_text: str,
-    glossary_terms: Iterable[Any],
-) -> str:
-    selected_terms = select_glossary_terms_for_text(source_text, glossary_terms)
-    return make_selected_glossary_hash(selected_terms)
 
 
 def make_cache_key(
@@ -166,41 +110,6 @@ class TranslationCacheService:
             preserve_names=preserve_names,
             selected_glossary_hash=selected_glossary_hash,
         )
-
-
-def _to_selected_term(term: Any) -> SelectedGlossaryTerm:
-    if isinstance(term, SelectedGlossaryTerm):
-        return term
-    return SelectedGlossaryTerm(
-        source_term=str(_get_term_value(term, "source_term", "") or ""),
-        target_term=str(_get_term_value(term, "target_term", "") or ""),
-        term_type=str(_get_term_value(term, "term_type", "common") or "common"),
-        description=_get_optional_str(term, "description"),
-        is_case_sensitive=bool(_get_term_value(term, "is_case_sensitive", False)),
-    )
-
-
-def _get_term_value(term: Any, name: str, default: Any) -> Any:
-    if isinstance(term, dict):
-        return term.get(name, default)
-    return getattr(term, name, default)
-
-
-def _get_optional_str(term: Any, name: str) -> str | None:
-    value = _get_term_value(term, name, None)
-    if value is None:
-        return None
-    return str(value)
-
-
-def _term_to_cache_dict(term: SelectedGlossaryTerm) -> dict[str, Any]:
-    return {
-        "source_term": term.source_term,
-        "target_term": term.target_term,
-        "term_type": term.term_type,
-        "description": term.description,
-        "is_case_sensitive": term.is_case_sensitive,
-    }
 
 
 def _sha256_json(value: Any) -> str:

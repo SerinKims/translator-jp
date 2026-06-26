@@ -200,7 +200,8 @@ backend/app/services/glossary.py
 
 ```text
 활성 용어집 조회
-source_text에 포함된 용어 탐색
+source_text에 포함된 source_term 탐색
+source_text에 포함된 alias 탐색
 prompt에 넣을 glossary context 생성
 번역 결과의 glossary 위반 여부 검사
 ```
@@ -215,6 +216,38 @@ prompt에 넣을 glossary context 생성
 ```
 
 번역 요청 시 활성화된 glossary를 prompt에 반영한다.
+
+정책:
+
+```text
+용어집 전체를 prompt에 넣지 않는다.
+현재 chunk에 등장하는 source_term 또는 alias가 있는 항목만 선별한다.
+source_lang과 target_lang이 요청 언어와 일치하는 항목만 사용한다.
+is_active=false인 항목은 사용하지 않는다.
+MAX_GLOSSARY_TERMS_PER_CHUNK=30
+MAX_GLOSSARY_CONTEXT_CHARS=1500
+```
+
+정렬 기준:
+
+```text
+1. is_required=true 우선
+2. priority 높은 순
+3. source_term 길이 긴 순
+4. source_term 오름차순
+```
+
+Prompt 삽입 형식:
+
+```text
+[용어집 - 반드시 지킬 것]
+魔王=마왕
+王都=왕도
+姫様=공주님
+```
+
+`use_glossary=false`이면 glossary context를 prompt에 포함하지 않는다.
+캐시 키에 사용하는 glossary hash는 전체 용어집이 아니라 현재 chunk에 선별된 용어만 기준으로 생성한다.
 
 ---
 

@@ -172,10 +172,15 @@ erDiagram
     glossary_terms {
         integer id PK
         integer glossary_set_id FK
+        text source_lang
+        text target_lang
         text source_term
         text target_term
         text term_type
         text description
+        text aliases
+        integer priority
+        integer is_required
         integer is_case_sensitive
         integer is_active
         datetime created_at
@@ -638,11 +643,16 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 
     glossary_set_id INTEGER,
 
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
     source_term TEXT NOT NULL,
     target_term TEXT NOT NULL,
 
     term_type TEXT NOT NULL DEFAULT 'common',
     description TEXT,
+    aliases TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_required INTEGER NOT NULL DEFAULT 1,
 
     is_case_sensitive INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -652,9 +662,14 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 
     FOREIGN KEY (glossary_set_id) REFERENCES glossary_sets(id) ON DELETE CASCADE,
 
-    UNIQUE (glossary_set_id, source_term)
+    UNIQUE (glossary_set_id, source_lang, target_lang, source_term)
 );
 ```
+
+`aliases`는 JSON 배열 문자열로 저장한다. 예: `["王城", "王国の都"]`.
+번역 시에는 `source_lang`, `target_lang`이 요청 언어와 일치하고 `is_active=1`인 항목만 후보가 된다.
+현재 chunk의 `source_text`에 `source_term` 또는 `aliases` 중 하나가 실제로 포함된 항목만 prompt에 삽입한다.
+선별된 항목은 `is_required=true`, `priority` 높은 순, `source_term` 길이 긴 순, `source_term` 오름차순으로 정렬한다.
 
 ---
 
@@ -1314,11 +1329,16 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 
     glossary_set_id INTEGER,
 
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
     source_term TEXT NOT NULL,
     target_term TEXT NOT NULL,
 
     term_type TEXT NOT NULL DEFAULT 'common',
     description TEXT,
+    aliases TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_required INTEGER NOT NULL DEFAULT 1,
 
     is_case_sensitive INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -1328,7 +1348,7 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 
     FOREIGN KEY (glossary_set_id) REFERENCES glossary_sets(id) ON DELETE CASCADE,
 
-    UNIQUE (glossary_set_id, source_term)
+    UNIQUE (glossary_set_id, source_lang, target_lang, source_term)
 );
 
 CREATE TABLE IF NOT EXISTS translation_cache (
@@ -1599,6 +1619,28 @@ ON translation_jobs(source_url);
 
 CREATE INDEX IF NOT EXISTS idx_translation_jobs_source_site_work_id
 ON translation_jobs(source_site, source_work_id);
+```
+
+이미 `glossary_terms` 테이블이 생성되어 있는 경우 아래 SQL로 기본 용어집 컬럼을 추가한다.
+
+```sql
+ALTER TABLE glossary_terms
+ADD COLUMN source_lang TEXT NOT NULL DEFAULT 'ja';
+
+ALTER TABLE glossary_terms
+ADD COLUMN target_lang TEXT NOT NULL DEFAULT 'ko';
+
+ALTER TABLE glossary_terms
+ADD COLUMN aliases TEXT;
+
+ALTER TABLE glossary_terms
+ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE glossary_terms
+ADD COLUMN is_required INTEGER NOT NULL DEFAULT 1;
+
+CREATE INDEX IF NOT EXISTS idx_glossary_terms_lang
+ON glossary_terms(source_lang, target_lang);
 ```
 
 주의:

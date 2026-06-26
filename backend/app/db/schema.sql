@@ -100,11 +100,16 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 
     glossary_set_id INTEGER,
 
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
     source_term TEXT NOT NULL,
     target_term TEXT NOT NULL,
 
     term_type TEXT NOT NULL DEFAULT 'common',
     description TEXT,
+    aliases TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_required INTEGER NOT NULL DEFAULT 1,
 
     is_case_sensitive INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -114,7 +119,7 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 
     FOREIGN KEY (glossary_set_id) REFERENCES glossary_sets(id) ON DELETE CASCADE,
 
-    UNIQUE (glossary_set_id, source_term)
+    UNIQUE (glossary_set_id, source_lang, target_lang, source_term)
 );
 
 CREATE TABLE IF NOT EXISTS translation_cache (
@@ -268,6 +273,9 @@ ON translation_chunks(status);
 
 CREATE INDEX IF NOT EXISTS idx_glossary_terms_source_term
 ON glossary_terms(source_term);
+
+CREATE INDEX IF NOT EXISTS idx_glossary_terms_lang
+ON glossary_terms(source_lang, target_lang);
 
 CREATE INDEX IF NOT EXISTS idx_glossary_terms_active
 ON glossary_terms(is_active);

@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models import TranslationJob
 from app.db.repositories.chunk_repository import ChunkRepository
-from app.db.repositories.glossary_repository import GlossaryRepository
 from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.ollama_client import (
     OLLAMA_EMPTY_RESPONSE_MESSAGE,
@@ -30,9 +29,12 @@ from app.services.chunker import (
     chunk_text,
 )
 from app.services.cache import (
-    SelectedGlossaryTerm,
     TranslationCacheService,
     build_cache_key,
+)
+from app.services.glossary import (
+    SelectedGlossaryTerm,
+    build_glossary_context,
     make_selected_glossary_hash,
     select_glossary_terms_for_text,
 )
@@ -206,9 +208,14 @@ class TranslationService:
         translation_repository = TranslationRepository(self.db)
         chunk_repository = ChunkRepository(self.db)
         cache_service = TranslationCacheService(self.db)
-        active_glossary_terms = (
-            GlossaryRepository(self.db).list_active_terms() if run_options.use_glossary else []
-        )
+        active_glossary_terms = []
+        if run_options.use_glossary:
+            from app.db.repositories.glossary_repository import GlossaryRepository
+
+            active_glossary_terms = GlossaryRepository(self.db).list_active_terms(
+                source_lang=run_options.source_lang,
+                target_lang=run_options.target_lang,
+            )
         translation_repository.update_job(job.id, status="running")
 
         chunks = chunk_text(
@@ -241,6 +248,8 @@ class TranslationService:
             selected_glossary_terms = select_glossary_terms_for_text(
                 chunk["source_text"],
                 active_glossary_terms,
+                source_lang=run_options.source_lang,
+                target_lang=run_options.target_lang,
             )
             selected_glossary_hash = make_selected_glossary_hash(selected_glossary_terms)
             cache_key = build_cache_key(
@@ -442,9 +451,7 @@ class TranslationService:
     ) -> str:
         if not enabled or not selected_glossary_terms:
             return ""
-        return "\n".join(
-            f"- {term.source_term} => {term.target_term}" for term in selected_glossary_terms
-        )
+        return build_glossary_context(selected_glossary_terms)
 
     def _extract_translation_text(self, raw_text: str) -> str:
         text = raw_text.strip()

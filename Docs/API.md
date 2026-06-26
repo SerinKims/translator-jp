@@ -273,12 +273,40 @@ Request:
 
 ```json
 {
+  "source_lang": "ja",
+  "target_lang": "ko",
   "source_term": "王都",
   "target_term": "왕도",
   "term_type": "place",
-  "description": "판타지 문맥에서 수도보다 자연스러운 번역"
+  "description": "판타지 문맥에서 수도보다 자연스러운 번역",
+  "aliases": ["王城", "王国の都"],
+  "priority": 80,
+  "is_required": true,
+  "is_active": true
 }
 ```
+
+Response:
+
+```json
+{
+  "id": 1,
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "source_term": "王都",
+  "target_term": "왕도",
+  "term_type": "place",
+  "description": "판타지 문맥에서 수도보다 자연스러운 번역",
+  "aliases": ["王城", "王国の都"],
+  "priority": 80,
+  "is_required": true,
+  "is_active": true,
+  "created_at": "2026-06-26T10:00:00",
+  "updated_at": "2026-06-26T10:00:00"
+}
+```
+
+`GET /api/glossary`는 위 응답 객체의 배열을 반환한다.
 
 ---
 
