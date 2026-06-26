@@ -137,17 +137,28 @@ class GlossarySet(TimestampMixin, Base):
 class GlossaryTerm(TimestampMixin, Base):
     __tablename__ = "glossary_terms"
     __table_args__ = (
-        UniqueConstraint("glossary_set_id", "source_term", name="uq_glossary_terms_set_source"),
+        UniqueConstraint(
+            "glossary_set_id",
+            "source_lang",
+            "target_lang",
+            "source_term",
+            name="uq_glossary_terms_set_lang_source",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     glossary_set_id: Mapped[int | None] = mapped_column(
         ForeignKey("glossary_sets.id", ondelete="CASCADE"),
     )
+    source_lang: Mapped[str] = mapped_column(String, nullable=False, default="ja")
+    target_lang: Mapped[str] = mapped_column(String, nullable=False, default="ko")
     source_term: Mapped[str] = mapped_column(String, nullable=False)
     target_term: Mapped[str] = mapped_column(String, nullable=False)
     term_type: Mapped[str] = mapped_column(String, nullable=False, default="common")
     description: Mapped[str | None] = mapped_column(Text)
+    aliases: Mapped[str | None] = mapped_column(Text)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_required: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_case_sensitive: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 

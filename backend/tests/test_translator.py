@@ -142,6 +142,52 @@ def test_translate_selected_glossary_change_calls_ollama_again(db_session: Sessi
     asyncio.run(run_test())
 
 
+def test_translate_use_glossary_true_injects_selected_glossary_context(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["translated"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+        GlossaryRepository(db_session).create_term(
+            source_term="王都",
+            target_term="왕도",
+            term_type="place",
+            aliases=["王城"],
+            priority=80,
+        )
+
+        await service.translate_text(TranslationRequest(text="王城の門が開いた。"))
+
+        user_prompt = fake_client.calls[0]["messages"][1]["content"]
+        assert "[용어집 - 반드시 지킬 것]" in user_prompt
+        assert "王都=왕도" in user_prompt
+
+    asyncio.run(run_test())
+
+
+def test_translate_use_glossary_false_does_not_inject_glossary_context(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["translated"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+        GlossaryRepository(db_session).create_term(
+            source_term="王都",
+            target_term="왕도",
+            term_type="place",
+        )
+
+        await service.translate_text(
+            TranslationRequest(text="王都の門が開いた。", use_glossary=False)
+        )
+
+        user_prompt = fake_client.calls[0]["messages"][1]["content"]
+        assert "[용어집 - 반드시 지킬 것]" not in user_prompt
+        assert "王都=왕도" not in user_prompt
+
+    asyncio.run(run_test())
+
+
 def test_translate_long_text_uses_multiple_chunks(db_session: Session) -> None:
     async def run_test() -> None:
         service = TranslationService(
