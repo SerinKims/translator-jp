@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.db.models import TranslationJob
 from app.db.repositories.chunk_repository import ChunkRepository
 from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.ollama_client import (
@@ -45,6 +47,22 @@ TRANSLATION_TIMEOUT_MESSAGE = (
 )
 EMPTY_MODEL_RESPONSE_MESSAGE = "모델이 빈 응답을 반환했습니다. 다시 시도해주세요."
 STREAM_NOT_SUPPORTED_MESSAGE = "스트리밍 번역은 아직 지원하지 않습니다."
+JOB_NOT_FOUND_MESSAGE = "번역 작업을 찾을 수 없습니다."
+
+
+@dataclass(frozen=True)
+class TranslationRunOptions:
+    source_lang: str
+    target_lang: str
+    style: str
+    honorific_policy: str
+    preserve_names: bool
+    use_glossary: bool
+    use_cache: bool
+    think: str | bool
+    options: dict[str, Any] | None
+    stream: bool = False
+    page_index: int = 0
 
 
 class TranslationServiceError(RuntimeError):
@@ -80,23 +98,27 @@ class TranslationService:
         self.prompt_version = settings.prompt_version or PROMPT_VERSION
 
     async def translate_text(self, request: TranslationRequest) -> TranslationResponse:
-        started_at = time.perf_counter()
-        self._validate_request(request)
+        run_options = TranslationRunOptions(
+            source_lang=request.source_lang,
+            target_lang=request.target_lang,
+            style=request.style,
+            honorific_policy=request.honorific_policy,
+            preserve_names=request.preserve_names,
+            use_glossary=request.use_glossary,
+            use_cache=request.use_cache,
+            think=request.think,
+            options=request.options,
+            stream=request.stream,
+            page_index=request.page_index,
+        )
+        self._validate_run_options(run_options, text=request.text)
 
         prompt_version = self.prompt_loader.select_prompt_version(
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             prompt_version=self.prompt_version,
         )
-        system_prompt = self.prompt_loader.load(
-            prompt_version,
-            source_lang=request.source_lang,
-            target_lang=request.target_lang,
-        )
-
-        translation_repository = TranslationRepository(self.db)
-        chunk_repository = ChunkRepository(self.db)
-        job = translation_repository.create_job(
+        job = TranslationRepository(self.db).create_job(
             original_text=request.text,
             source_language=request.source_lang,
             target_language=request.target_lang,
@@ -116,8 +138,69 @@ class TranslationService:
             status="running",
         )
 
+        return await self._translate_job(job=job, run_options=run_options)
+
+    async def translate_job(
+        self,
+        job_id: int,
+        *,
+        source_lang: str = "ja",
+        target_lang: str = "ko",
+        style: str = "webnovel",
+        honorific_policy: str = "preserve",
+        preserve_names: bool = True,
+        use_glossary: bool = True,
+        use_cache: bool = True,
+        think: str | bool = False,
+        options: dict[str, Any] | None = None,
+        stream: bool = False,
+        page_index: int = 0,
+    ) -> TranslationResponse:
+        job = TranslationRepository(self.db).get_job(job_id)
+        if job is None:
+            raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+        run_options = TranslationRunOptions(
+            source_lang=source_lang,
+            target_lang=target_lang,
+            style=style,
+            honorific_policy=honorific_policy,
+            preserve_names=preserve_names,
+            use_glossary=use_glossary,
+            use_cache=use_cache,
+            think=think,
+            options=options,
+            stream=stream,
+            page_index=page_index,
+        )
+        self._validate_run_options(run_options, text=job.original_text)
+
+        return await self._translate_job(job=job, run_options=run_options)
+
+    async def _translate_job(
+        self,
+        *,
+        job: TranslationJob,
+        run_options: TranslationRunOptions,
+    ) -> TranslationResponse:
+        started_at = time.perf_counter()
+        prompt_version = self.prompt_loader.select_prompt_version(
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            prompt_version=self.prompt_version,
+        )
+        system_prompt = self.prompt_loader.load(
+            prompt_version,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+        )
+
+        translation_repository = TranslationRepository(self.db)
+        chunk_repository = ChunkRepository(self.db)
+        translation_repository.update_job(job.id, status="running")
+
         chunks = chunk_text(
-            request.text,
+            job.original_text,
             max_chars_per_chunk=self.max_chars_per_chunk,
             overlap_paragraphs=self.chunk_overlap_paragraphs,
         )
@@ -143,7 +226,7 @@ class TranslationService:
             )
 
             messages = self._build_messages(
-                request=request,
+                run_options=run_options,
                 system_prompt=system_prompt,
                 source_text=chunk["source_text"],
                 context_before=chunk["context_before"],
@@ -152,8 +235,8 @@ class TranslationService:
             try:
                 result = await self.ollama_client.chat(
                     messages,
-                    options=request.options,
-                    think=request.think,
+                    options=run_options.options,
+                    think=run_options.think,
                 )
                 translated_text = self._extract_translation_text(result.content)
                 if not translated_text:
@@ -173,8 +256,8 @@ class TranslationService:
                 chunk_responses.append(
                     TranslationChunkResponse(
                         index=chunk["index"],
-                        source_lang=request.source_lang,
-                        target_lang=request.target_lang,
+                        source_lang=run_options.source_lang,
+                        target_lang=run_options.target_lang,
                         status="completed",
                     )
                 )
@@ -191,8 +274,8 @@ class TranslationService:
                 chunk_responses.append(
                     TranslationChunkResponse(
                         index=chunk["index"],
-                        source_lang=request.source_lang,
-                        target_lang=request.target_lang,
+                        source_lang=run_options.source_lang,
+                        target_lang=run_options.target_lang,
                         status="failed",
                     )
                 )
@@ -214,49 +297,65 @@ class TranslationService:
 
         return TranslationResponse(
             job_id=job.id,
-            source_type="pasted_text",
-            source_lang=request.source_lang,
-            target_lang=request.target_lang,
-            current_page_index=request.page_index,
+            source_type="pasted_text" if job.source_site == "manual" else job.source_site,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            current_page_index=run_options.page_index,
             total_pages=1,
             has_next_page=False,
             translated_text=translated_text,
             model=self.model_name,
             prompt_version=prompt_version,
-            style=request.style,
+            style=run_options.style,
             elapsed_ms=elapsed_ms,
             cache_hit=False,
             chunks=sorted(chunk_responses, key=lambda item: item.index),
         )
 
     def _validate_request(self, request: TranslationRequest) -> None:
-        if not request.text.strip():
+        run_options = TranslationRunOptions(
+            source_lang=request.source_lang,
+            target_lang=request.target_lang,
+            style=request.style,
+            honorific_policy=request.honorific_policy,
+            preserve_names=request.preserve_names,
+            use_glossary=request.use_glossary,
+            use_cache=request.use_cache,
+            think=request.think,
+            options=request.options,
+            stream=request.stream,
+            page_index=request.page_index,
+        )
+        self._validate_run_options(run_options, text=request.text)
+
+    def _validate_run_options(self, run_options: TranslationRunOptions, *, text: str) -> None:
+        if not text.strip():
             raise TranslationServiceError(EMPTY_TEXT_MESSAGE, status_code=400)
-        if request.target_lang != "ko":
+        if run_options.target_lang != "ko":
             raise TranslationServiceError(ONLY_KO_TARGET_MESSAGE, status_code=400)
-        if request.stream:
+        if run_options.stream:
             raise TranslationServiceError(STREAM_NOT_SUPPORTED_MESSAGE, status_code=400)
 
     def _build_messages(
         self,
         *,
-        request: TranslationRequest,
+        run_options: TranslationRunOptions,
         system_prompt: str,
         source_text: str,
         context_before: str,
         context_after: str,
     ) -> list[dict[str, str]]:
         glossary_context = self._build_glossary_context(
-            enabled=request.use_glossary,
+            enabled=run_options.use_glossary,
             source_text=source_text,
         )
         user_prompt = "\n".join(
             [
-                f"source_lang: {request.source_lang}",
-                f"target_lang: {request.target_lang}",
-                f"style: {request.style}",
-                f"honorific_policy: {request.honorific_policy}",
-                f"preserve_names: {request.preserve_names}",
+                f"source_lang: {run_options.source_lang}",
+                f"target_lang: {run_options.target_lang}",
+                f"style: {run_options.style}",
+                f"honorific_policy: {run_options.honorific_policy}",
+                f"preserve_names: {run_options.preserve_names}",
                 f"context_before:\n{context_before}" if context_before else "context_before:",
                 f"context_after:\n{context_after}" if context_after else "context_after:",
                 f"glossary:\n{glossary_context}" if glossary_context else "glossary:",

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import TranslationJob
 from app.db.repositories.chunk_repository import ChunkRepository
+from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.ollama_client import OllamaClientError
 from app.llm.translator import (
     EMPTY_TEXT_MESSAGE,
@@ -119,6 +120,49 @@ def test_translate_marks_job_failed_when_all_chunks_fail(db_session: Session) ->
         assert job.completed_chunks == 0
         assert job.failed_chunks == 1
         assert job.error_message == "engine down"
+
+    asyncio.run(run_test())
+
+
+def test_translate_existing_pixiv_job_reuses_job_id(db_session: Session) -> None:
+    async def run_test() -> None:
+        repository = TranslationRepository(db_session)
+        job = repository.create_job(
+            source_site="pixiv",
+            source_url="https://www.pixiv.net/novel/show.php?id=12345678",
+            source_title="title",
+            source_author="author",
+            source_work_id="12345678",
+            original_text=SOURCE_TEXT,
+            status="fetched",
+        )
+        service = TranslationService(db_session, ollama_client=FakeOllamaClient(["translated"]))
+
+        response = await service.translate_job(
+            job.id,
+            source_lang="ja",
+            target_lang="ko",
+            style="webnovel",
+            honorific_policy="preserve",
+            preserve_names=True,
+            use_glossary=True,
+            use_cache=True,
+            think=False,
+            options=None,
+        )
+
+        saved = db_session.get(TranslationJob, job.id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=job.id)
+
+        assert response.job_id == job.id
+        assert len(repository.list_jobs()) == 1
+        assert saved is not None
+        assert saved.source_site == "pixiv"
+        assert saved.status == "completed"
+        assert saved.translated_text == "translated"
+        assert saved.completed_chunks == 1
+        assert chunks[0].status == "completed"
+        assert chunks[0].translated_text == "translated"
 
     asyncio.run(run_test())
 

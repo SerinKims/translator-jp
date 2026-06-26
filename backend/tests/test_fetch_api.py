@@ -1,6 +1,8 @@
 import asyncio
 import json
 from collections.abc import Generator
+from types import SimpleNamespace
+from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -10,7 +12,9 @@ from app.crawler.pixiv_client import PixivFetchFailedError
 from app.crawler.pixiv_types import PIXIV_FETCH_FAILED_MESSAGE, PixivFetchedPage
 from app.crawler.url_validator import INVALID_PIXIV_URL_MESSAGE
 from app.db.models import TranslationJob
+from app.db.repositories.chunk_repository import ChunkRepository
 from app.db.session import get_db
+from app.llm.translator import TranslationService
 from app.main import app
 from app.services.fetch_service import FetchService
 
@@ -48,6 +52,29 @@ class FakePixivClient:
 class FailingPixivClient:
     async def fetch_html(self, url: str) -> PixivFetchedPage:
         raise PixivFetchFailedError(PIXIV_FETCH_FAILED_MESSAGE)
+
+
+class FakeOllamaClient:
+    def __init__(self, responses: list[str]) -> None:
+        self.responses = responses
+        self.calls: list[dict[str, Any]] = []
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        options: dict[str, Any] | None = None,
+        think: str | bool | None = None,
+    ) -> SimpleNamespace:
+        self.calls.append({"messages": messages, "options": options, "think": think})
+        content = self.responses[len(self.calls) - 1]
+        return SimpleNamespace(
+            content=content,
+            text=content,
+            model="gemma4:26b-a4b-it-q4_K_M",
+            elapsed_ms=12,
+            raw_response={"message": {"content": content}},
+        )
 
 
 def test_fetch_service_saves_pixiv_result_to_translation_jobs(
@@ -114,6 +141,61 @@ def test_fetch_pixiv_api_returns_saved_result(db_session: Session) -> None:
         "char_count": len(TEXT),
         "job_id": 1,
     }
+
+
+def test_fetch_pixiv_translate_api_returns_translation_result(db_session: Session) -> None:
+    translation_service = TranslationService(
+        db_session,
+        ollama_client=FakeOllamaClient(["translated pixiv text"]),
+    )
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_fetch_service] = lambda: FetchService(
+        db_session,
+        pixiv_client=FakePixivClient(),
+        translation_service=translation_service,
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/fetch/pixiv/translate",
+            json={
+                "url": "https://www.pixiv.net/novel/show.php?id=12345678",
+                "style": "webnovel",
+                "honorific_policy": "preserve",
+                "preserve_names": True,
+                "use_glossary": True,
+                "use_cache": True,
+                "think": "low",
+                "options": {"temperature": 0.2, "max_tokens": 2048},
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    saved = db_session.get(TranslationJob, body["job_id"])
+    chunks = ChunkRepository(db_session).list_chunks(job_id=body["job_id"])
+
+    assert response.status_code == 200
+    assert body["job_id"] == 1
+    assert body["source_site"] == "pixiv"
+    assert body["source_url"] == "https://www.pixiv.net/novel/show.php?id=12345678"
+    assert body["source_work_id"] == "12345678"
+    assert body["title"] == TITLE
+    assert body["author"] == AUTHOR
+    assert body["translated_text"] == "translated pixiv text"
+    assert body["chunks"] == [
+        {"index": 0, "source_lang": "ja", "target_lang": "ko", "status": "completed"}
+    ]
+    assert saved is not None
+    assert saved.source_site == "pixiv"
+    assert saved.status == "completed"
+    assert saved.translated_text == "translated pixiv text"
+    assert saved.ollama_think == '"low"'
+    assert saved.ollama_options_json == '{"max_tokens": 2048, "temperature": 0.2}'
+    assert len(chunks) == 1
+    assert chunks[0].status == "completed"
 
 
 def test_fetch_pixiv_api_accepts_ollama_options(db_session: Session) -> None:
