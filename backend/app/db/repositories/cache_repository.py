@@ -1,35 +1,9 @@
 from __future__ import annotations
 
-import hashlib
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import TranslationCache
-
-
-def make_source_hash(
-    *,
-    source_text: str,
-    model_name: str,
-    prompt_version: str,
-    style: str,
-    honorific_policy: str,
-    preserve_names: bool,
-    glossary_hash: str | None = None,
-) -> str:
-    raw = "|".join(
-        [
-            source_text,
-            model_name,
-            prompt_version,
-            style,
-            honorific_policy,
-            str(preserve_names),
-            glossary_hash or "",
-        ]
-    )
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 class CacheRepository:
@@ -39,6 +13,7 @@ class CacheRepository:
     def create_cache_entry(
         self,
         *,
+        cache_key: str,
         source_text: str,
         translated_text: str,
         model_name: str = "gemma4:26b-a4b-it-q4_K_M",
@@ -46,20 +21,11 @@ class CacheRepository:
         style: str = "webnovel",
         honorific_policy: str = "preserve",
         preserve_names: bool = True,
-        glossary_hash: str | None = None,
+        selected_glossary_hash: str | None = None,
         hit_count: int = 0,
     ) -> TranslationCache:
-        source_hash = make_source_hash(
-            source_text=source_text,
-            model_name=model_name,
-            prompt_version=prompt_version,
-            style=style,
-            honorific_policy=honorific_policy,
-            preserve_names=preserve_names,
-            glossary_hash=glossary_hash,
-        )
         cache_entry = TranslationCache(
-            source_hash=source_hash,
+            source_hash=cache_key,
             source_text=source_text,
             translated_text=translated_text,
             model_name=model_name,
@@ -67,7 +33,7 @@ class CacheRepository:
             style=style,
             honorific_policy=honorific_policy,
             preserve_names=int(preserve_names),
-            glossary_hash=glossary_hash,
+            glossary_hash=selected_glossary_hash,
             hit_count=hit_count,
         )
         self.db.add(cache_entry)
@@ -75,32 +41,13 @@ class CacheRepository:
         self.db.refresh(cache_entry)
         return cache_entry
 
+    def get_by_cache_key(self, cache_key: str) -> TranslationCache | None:
+        return self.get_by_source_hash(cache_key)
+
     def get_by_source_hash(self, source_hash: str) -> TranslationCache | None:
         return self.db.scalar(
             select(TranslationCache).where(TranslationCache.source_hash == source_hash)
         )
-
-    def find_cached_translation(
-        self,
-        *,
-        source_text: str,
-        model_name: str = "gemma4:26b-a4b-it-q4_K_M",
-        prompt_version: str = "translate_ja_ko_v1",
-        style: str = "webnovel",
-        honorific_policy: str = "preserve",
-        preserve_names: bool = True,
-        glossary_hash: str | None = None,
-    ) -> TranslationCache | None:
-        source_hash = make_source_hash(
-            source_text=source_text,
-            model_name=model_name,
-            prompt_version=prompt_version,
-            style=style,
-            honorific_policy=honorific_policy,
-            preserve_names=preserve_names,
-            glossary_hash=glossary_hash,
-        )
-        return self.get_by_source_hash(source_hash)
 
     def increment_hit_count(self, source_hash: str) -> TranslationCache | None:
         cache_entry = self.get_by_source_hash(source_hash)
