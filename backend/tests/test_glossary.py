@@ -110,10 +110,7 @@ def test_builds_glossary_prompt_context() -> None:
     )
 
     assert build_glossary_context(selected) == (
-        "[용어집 - 반드시 지킬 것]\n"
-        "魔王=마왕\n"
-        "王都=왕도\n"
-        "姫様=공주님"
+        "[용어집 - 반드시 지킬 것]\n魔王=마왕\n王都=왕도\n姫様=공주님"
     )
 
 
@@ -131,8 +128,7 @@ def test_max_terms_per_chunk_limit() -> None:
 
 def test_max_context_chars_limit() -> None:
     selected = [
-        {"source_term": f"長い用語{i:02d}", "target_term": "아주긴번역어" * 20}
-        for i in range(100)
+        {"source_term": f"長い用語{i:02d}", "target_term": "아주긴번역어" * 20} for i in range(100)
     ]
 
     context = build_glossary_context(selected)
