@@ -80,6 +80,8 @@ Request:
 ```json
 {
   "url": "https://www.pixiv.net/novel/show.php?id=12345678",
+  "source_lang": "ja",
+  "target_lang": "ko",
   "style": "webnovel",
   "honorific_policy": "preserve",
   "preserve_names": true,
@@ -110,10 +112,21 @@ Response:
   "chunks": [
     {
       "index": 0,
+      "source_lang": "ja",
+      "target_lang": "ko",
       "status": "completed"
     }
   ]
 }
+```
+
+동작:
+
+```text
+pixiv 단건 URL을 Backend에서 수집한다.
+수집한 원문과 pixiv source metadata로 translation_jobs를 생성한다.
+TranslationService의 공통 chunk 번역 로직으로 같은 job_id를 번역한다.
+chunk 상태와 최종 번역문은 manual job이 아니라 pixiv job에 저장한다.
 ```
 
 ---

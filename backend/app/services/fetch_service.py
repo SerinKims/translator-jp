@@ -14,7 +14,8 @@ from app.crawler.pixiv_parser import PixivParseError, parse_pixiv_novel_html
 from app.crawler.pixiv_types import PixivFetchedPage
 from app.crawler.url_validator import UnsupportedPixivUrlError, validate_pixiv_novel_url
 from app.db.repositories.translation_repository import TranslationRepository
-from app.schemas.fetch import PixivFetchResponse
+from app.llm.translator import TranslationService, TranslationServiceError
+from app.schemas.fetch import PixivFetchResponse, PixivTranslateResponse
 
 
 class PixivClientProtocol(Protocol):
@@ -36,9 +37,11 @@ class FetchService:
         db: Session,
         *,
         pixiv_client: PixivClientProtocol | None = None,
+        translation_service: TranslationService | None = None,
     ) -> None:
         self.db = db
         self.pixiv_client = pixiv_client or PixivHttpClient()
+        self.translation_service = translation_service or TranslationService(db)
         self.translation_repository = TranslationRepository(db)
 
     async def fetch_pixiv(
@@ -46,6 +49,11 @@ class FetchService:
         *,
         url: str,
         translate_after_fetch: bool = False,
+        source_lang: str = "ja",
+        target_lang: str = "ko",
+        style: str = "webnovel",
+        honorific_policy: str = "preserve",
+        preserve_names: bool = True,
         think: str | bool = False,
         options: dict[str, Any] | None = None,
     ) -> PixivFetchResponse:
@@ -90,6 +98,11 @@ class FetchService:
             source_work_id=novel.source_work_id,
             source_fetched_at=datetime.now(timezone.utc),
             original_text=novel.text,
+            source_language=source_lang,
+            target_language=target_lang,
+            style=style,
+            honorific_policy=honorific_policy,
+            preserve_names=preserve_names,
             ollama_think=think,
             ollama_options=options,
             status=status,
@@ -104,4 +117,62 @@ class FetchService:
             text=novel.text,
             char_count=novel.char_count,
             job_id=job.id,
+        )
+
+    async def fetch_and_translate_pixiv(
+        self,
+        *,
+        url: str,
+        source_lang: str = "ja",
+        target_lang: str = "ko",
+        style: str = "webnovel",
+        honorific_policy: str = "preserve",
+        preserve_names: bool = True,
+        use_glossary: bool = True,
+        use_cache: bool = True,
+        stream: bool = False,
+        think: str | bool = False,
+        options: dict[str, Any] | None = None,
+    ) -> PixivTranslateResponse:
+        fetched = await self.fetch_pixiv(
+            url=url,
+            translate_after_fetch=True,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            style=style,
+            honorific_policy=honorific_policy,
+            preserve_names=preserve_names,
+            think=think,
+            options=options,
+        )
+
+        try:
+            translation = await self.translation_service.translate_job(
+                fetched.job_id,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                style=style,
+                honorific_policy=honorific_policy,
+                preserve_names=preserve_names,
+                use_glossary=use_glossary,
+                use_cache=use_cache,
+                stream=stream,
+                think=think,
+                options=options,
+            )
+        except TranslationServiceError as exc:
+            raise FetchServiceError(exc.message, status_code=exc.status_code) from exc
+
+        return PixivTranslateResponse(
+            job_id=fetched.job_id,
+            source_site=fetched.source_site,
+            source_url=fetched.source_url,
+            source_work_id=fetched.source_work_id,
+            title=fetched.title,
+            author=fetched.author,
+            translated_text=translation.translated_text,
+            model=translation.model,
+            prompt_version=translation.prompt_version,
+            elapsed_ms=translation.elapsed_ms,
+            chunks=translation.chunks,
         )
