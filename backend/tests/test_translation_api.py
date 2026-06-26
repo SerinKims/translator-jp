@@ -64,6 +64,55 @@ def test_translate_api_returns_translation_response(db_session: Session) -> None
     assert saved.source_site == "manual"
 
 
+def test_translate_api_second_same_request_returns_cache_hit(db_session: Session) -> None:
+    fake_client = FakeOllamaClient(["translated"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+    )
+
+    try:
+        client = TestClient(app)
+        first = client.post("/api/translate", json={"text": SOURCE_TEXT})
+        second = client.post("/api/translate", json={"text": SOURCE_TEXT})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["cache_hit"] is False
+    assert second.json()["cache_hit"] is True
+    assert second.json()["translated_text"] == "translated"
+    assert len(fake_client.calls) == 1
+
+
+def test_translate_api_use_cache_false_bypasses_existing_cache(db_session: Session) -> None:
+    fake_client = FakeOllamaClient(["cached translation", "fresh translation"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+    )
+
+    try:
+        client = TestClient(app)
+        first = client.post("/api/translate", json={"text": SOURCE_TEXT})
+        second = client.post(
+            "/api/translate",
+            json={"text": SOURCE_TEXT, "use_cache": False},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["cache_hit"] is False
+    assert second.json()["cache_hit"] is False
+    assert second.json()["translated_text"] == "fresh translation"
+    assert len(fake_client.calls) == 2
+
+
 def test_translate_api_rejects_non_ko_target(db_session: Session) -> None:
     app.dependency_overrides[get_translation_service] = lambda: TranslationService(
         db_session,

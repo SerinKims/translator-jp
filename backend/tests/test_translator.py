@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import TranslationJob
 from app.db.repositories.chunk_repository import ChunkRepository
+from app.db.repositories.glossary_repository import GlossaryRepository
 from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.ollama_client import OllamaClientError
 from app.llm.translator import (
@@ -45,6 +46,98 @@ def test_translate_short_text_saves_job_and_chunk(db_session: Session) -> None:
         assert job.completed_chunks == 1
         assert chunks[0].status == "completed"
         assert chunks[0].translated_text == "translated"
+
+    asyncio.run(run_test())
+
+
+def test_translate_same_text_second_request_uses_cache(db_session: Session) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["translated"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+
+        first = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+        second = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        assert first.cache_hit is False
+        assert second.cache_hit is True
+        assert second.translated_text == "translated"
+        assert len(fake_client.calls) == 1
+
+    asyncio.run(run_test())
+
+
+def test_translate_use_cache_false_bypasses_existing_cache(db_session: Session) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["cached translation", "fresh translation"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+
+        await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+        response = await service.translate_text(
+            TranslationRequest(text=SOURCE_TEXT, use_cache=False)
+        )
+
+        assert response.cache_hit is False
+        assert response.translated_text == "fresh translation"
+        assert len(fake_client.calls) == 2
+
+    asyncio.run(run_test())
+
+
+def test_translate_style_change_calls_ollama_again(db_session: Session) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["webnovel translation", "literal translation"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+
+        await service.translate_text(TranslationRequest(text=SOURCE_TEXT, style="webnovel"))
+        response = await service.translate_text(
+            TranslationRequest(text=SOURCE_TEXT, style="literal")
+        )
+
+        assert response.cache_hit is False
+        assert response.translated_text == "literal translation"
+        assert len(fake_client.calls) == 2
+
+    asyncio.run(run_test())
+
+
+def test_translate_source_lang_change_calls_ollama_again(db_session: Session) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["ja translation", "zxx translation"])
+        service = TranslationService(
+            db_session,
+            ollama_client=fake_client,
+            prompt_loader=FakePromptLoader(),
+        )
+
+        await service.translate_text(TranslationRequest(text=SOURCE_TEXT, source_lang="ja"))
+        response = await service.translate_text(
+            TranslationRequest(text=SOURCE_TEXT, source_lang="zxx")
+        )
+
+        assert response.cache_hit is False
+        assert response.translated_text == "zxx translation"
+        assert len(fake_client.calls) == 2
+
+    asyncio.run(run_test())
+
+
+def test_translate_selected_glossary_change_calls_ollama_again(db_session: Session) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["without glossary", "with glossary"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+        text = "魔王は静かに笑った。"
+
+        await service.translate_text(TranslationRequest(text=text))
+        GlossaryRepository(db_session).create_term(
+            source_term="魔王",
+            target_term="마왕",
+            term_type="title",
+        )
+        response = await service.translate_text(TranslationRequest(text=text))
+
+        assert response.cache_hit is False
+        assert response.translated_text == "with glossary"
+        assert len(fake_client.calls) == 2
 
     asyncio.run(run_test())
 
@@ -232,3 +325,23 @@ class FakeOllamaClient:
             elapsed_ms=12,
             raw_response={"message": {"content": content}},
         )
+
+
+class FakePromptLoader:
+    def select_prompt_version(
+        self,
+        *,
+        source_lang: str,
+        target_lang: str,
+        prompt_version: str | None = None,
+    ) -> str:
+        return prompt_version or "translate_ja_ko_v1"
+
+    def load(
+        self,
+        prompt_version: str,
+        *,
+        source_lang: str,
+        target_lang: str,
+    ) -> str:
+        return "system prompt"

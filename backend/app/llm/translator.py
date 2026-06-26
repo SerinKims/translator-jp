@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models import TranslationJob
 from app.db.repositories.chunk_repository import ChunkRepository
+from app.db.repositories.glossary_repository import GlossaryRepository
 from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.ollama_client import (
     OLLAMA_EMPTY_RESPONSE_MESSAGE,
@@ -27,6 +28,13 @@ from app.services.chunker import (
     CHUNK_OVERLAP_PARAGRAPHS,
     MAX_CHARS_PER_CHUNK,
     chunk_text,
+)
+from app.services.cache import (
+    SelectedGlossaryTerm,
+    TranslationCacheService,
+    build_cache_key,
+    make_selected_glossary_hash,
+    select_glossary_terms_for_text,
 )
 
 
@@ -197,6 +205,12 @@ class TranslationService:
 
         translation_repository = TranslationRepository(self.db)
         chunk_repository = ChunkRepository(self.db)
+        cache_service = TranslationCacheService(self.db)
+        active_glossary_terms = (
+            GlossaryRepository(self.db).list_active_terms()
+            if run_options.use_glossary
+            else []
+        )
         translation_repository.update_job(job.id, status="running")
 
         chunks = chunk_text(
@@ -209,6 +223,7 @@ class TranslationService:
         translated_chunks: list[tuple[int, str]] = []
         chunk_responses: list[TranslationChunkResponse] = []
         failed_messages: list[str] = []
+        cache_hit = False
 
         for chunk in chunks:
             chunk_repository.create_chunk(
@@ -225,12 +240,52 @@ class TranslationService:
                 status="running",
             )
 
+            selected_glossary_terms = select_glossary_terms_for_text(
+                chunk["source_text"],
+                active_glossary_terms,
+            )
+            selected_glossary_hash = make_selected_glossary_hash(selected_glossary_terms)
+            cache_key = build_cache_key(
+                source_text=chunk["source_text"],
+                source_lang=run_options.source_lang,
+                target_lang=run_options.target_lang,
+                model_name=self.model_name,
+                prompt_version=prompt_version,
+                style=run_options.style,
+                honorific_policy=run_options.honorific_policy,
+                preserve_names=run_options.preserve_names,
+                selected_glossary_hash=selected_glossary_hash,
+            )
+            if run_options.use_cache:
+                cached = cache_service.get_cached_translation(cache_key=cache_key)
+                if cached is not None:
+                    cache_hit = True
+                    translated_text = cached.translated_text
+                    chunk_repository.update_status(
+                        job_id=job.id,
+                        chunk_index=chunk["index"],
+                        status="completed",
+                        translated_text=translated_text,
+                        elapsed_ms=0,
+                    )
+                    translated_chunks.append((chunk["index"], translated_text))
+                    chunk_responses.append(
+                        TranslationChunkResponse(
+                            index=chunk["index"],
+                            source_lang=run_options.source_lang,
+                            target_lang=run_options.target_lang,
+                            status="completed",
+                        )
+                    )
+                    continue
+
             messages = self._build_messages(
                 run_options=run_options,
                 system_prompt=system_prompt,
                 source_text=chunk["source_text"],
                 context_before=chunk["context_before"],
                 context_after=chunk["context_after"],
+                selected_glossary_terms=selected_glossary_terms,
             )
             try:
                 result = await self.ollama_client.chat(
@@ -252,6 +307,18 @@ class TranslationService:
                     raw_model_response=self._serialize_raw_response(result.raw_response),
                     elapsed_ms=result.elapsed_ms,
                 )
+                if run_options.use_cache:
+                    cache_service.save_translation(
+                        cache_key=cache_key,
+                        source_text=chunk["source_text"],
+                        translated_text=translated_text,
+                        model_name=self.model_name,
+                        prompt_version=prompt_version,
+                        style=run_options.style,
+                        honorific_policy=run_options.honorific_policy,
+                        preserve_names=run_options.preserve_names,
+                        selected_glossary_hash=selected_glossary_hash,
+                    )
                 translated_chunks.append((chunk["index"], translated_text))
                 chunk_responses.append(
                     TranslationChunkResponse(
@@ -308,7 +375,7 @@ class TranslationService:
             prompt_version=prompt_version,
             style=run_options.style,
             elapsed_ms=elapsed_ms,
-            cache_hit=False,
+            cache_hit=cache_hit,
             chunks=sorted(chunk_responses, key=lambda item: item.index),
         )
 
@@ -344,10 +411,11 @@ class TranslationService:
         source_text: str,
         context_before: str,
         context_after: str,
+        selected_glossary_terms: list[SelectedGlossaryTerm],
     ) -> list[dict[str, str]]:
         glossary_context = self._build_glossary_context(
             enabled=run_options.use_glossary,
-            source_text=source_text,
+            selected_glossary_terms=selected_glossary_terms,
         )
         user_prompt = "\n".join(
             [
@@ -368,10 +436,18 @@ class TranslationService:
             {"role": "user", "content": user_prompt},
         ]
 
-    def _build_glossary_context(self, *, enabled: bool, source_text: str) -> str:
-        if not enabled or not source_text:
+    def _build_glossary_context(
+        self,
+        *,
+        enabled: bool,
+        selected_glossary_terms: list[SelectedGlossaryTerm],
+    ) -> str:
+        if not enabled or not selected_glossary_terms:
             return ""
-        return ""
+        return "\n".join(
+            f"- {term.source_term} => {term.target_term}"
+            for term in selected_glossary_terms
+        )
 
     def _extract_translation_text(self, raw_text: str) -> str:
         text = raw_text.strip()
