@@ -207,9 +207,7 @@ class TranslationService:
         chunk_repository = ChunkRepository(self.db)
         cache_service = TranslationCacheService(self.db)
         active_glossary_terms = (
-            GlossaryRepository(self.db).list_active_terms()
-            if run_options.use_glossary
-            else []
+            GlossaryRepository(self.db).list_active_terms() if run_options.use_glossary else []
         )
         translation_repository.update_job(job.id, status="running")
 
@@ -445,8 +443,7 @@ class TranslationService:
         if not enabled or not selected_glossary_terms:
             return ""
         return "\n".join(
-            f"- {term.source_term} => {term.target_term}"
-            for term in selected_glossary_terms
+            f"- {term.source_term} => {term.target_term}" for term in selected_glossary_terms
         )
 
     def _extract_translation_text(self, raw_text: str) -> str:
