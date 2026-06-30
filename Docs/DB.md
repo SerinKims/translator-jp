@@ -64,6 +64,7 @@ translation_jobs        번역 요청 1건 단위
 translation_chunks      긴 텍스트 분할 번역 단위
 glossary_sets           용어집 묶음
 glossary_terms          용어집 항목
+glossary_candidates     사용자 피드백 기반 후보 용어
 translation_cache       중복 번역 캐시
 translation_feedback    사용자 수정/피드백
 prompt_versions         프롬프트 버전 관리
@@ -183,6 +184,20 @@ erDiagram
         integer is_required
         integer is_case_sensitive
         integer is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    glossary_candidates {
+        integer id PK
+        text source_lang
+        text target_lang
+        text source_term
+        text suggested_target_term
+        text source_text
+        text model_translation
+        text user_corrected_translation
+        text status
         datetime created_at
         datetime updated_at
     }
@@ -704,7 +719,53 @@ VALUES
 
 ---
 
-## 6.5 translation_cache
+## 6.5 glossary_candidates
+
+사용자 피드백에서 모델 번역과 사용자 수정 번역이 다를 때 용어집 후보를 저장한다.
+
+후보 상태:
+
+```text
+pending    승인 대기
+approved   glossary_terms 등록 완료
+rejected   등록하지 않기로 결정
+```
+
+DDL:
+
+```sql
+CREATE TABLE IF NOT EXISTS glossary_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
+    source_term TEXT NOT NULL,
+    suggested_target_term TEXT NOT NULL,
+
+    source_text TEXT NOT NULL,
+    model_translation TEXT NOT NULL,
+    user_corrected_translation TEXT NOT NULL,
+
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+정책:
+
+```text
+후보 생성 시 기본 상태는 pending이다.
+approve 시 glossary_terms 등록과 후보 status=approved 변경을 한 트랜잭션으로 처리한다.
+approve 중 duplicate/conflict가 발생하면 후보는 pending으로 유지한다.
+reject 시 glossary_terms에는 등록하지 않고 후보 status만 rejected로 변경한다.
+```
+
+---
+
+## 6.6 translation_cache
 
 같은 입력을 반복 번역하지 않기 위한 캐시 테이블이다.
 
@@ -829,7 +890,7 @@ MVP 단계에서는 별도 `source_fetch_cache` 테이블을 만들지 않는다
 
 ---
 
-## 6.6 translation_feedback
+## 6.7 translation_feedback
 
 사용자가 모델 번역 결과를 수정하거나 평가한 내용을 저장한다.
 
@@ -837,7 +898,7 @@ MVP 단계에서는 별도 `source_fetch_cache` 테이블을 만들지 않는다
 
 ---
 
-### 6.6.1 용도
+### 6.7.1 용도
 
 ```text
 사용자 수정 번역 저장
@@ -849,7 +910,7 @@ golden dataset 후보 생성
 
 ---
 
-### 6.6.2 DDL
+### 6.7.2 DDL
 
 ```sql
 CREATE TABLE IF NOT EXISTS translation_feedback (
@@ -876,7 +937,7 @@ CREATE TABLE IF NOT EXISTS translation_feedback (
 
 ---
 
-### 6.6.3 feedback_type 예시
+### 6.7.3 feedback_type 예시
 
 ```text
 wrong_meaning        의미 오역
@@ -892,7 +953,7 @@ japanese_left        일본어 잔존
 
 ---
 
-## 6.7 prompt_versions
+## 6.8 prompt_versions
 
 프롬프트 버전을 관리한다.
 
@@ -900,7 +961,7 @@ japanese_left        일본어 잔존
 
 ---
 
-### 6.7.1 용도
+### 6.8.1 용도
 
 ```text
 프롬프트 버전 관리
@@ -911,7 +972,7 @@ japanese_left        일본어 잔존
 
 ---
 
-### 6.7.2 DDL
+### 6.8.2 DDL
 
 ```sql
 CREATE TABLE IF NOT EXISTS prompt_versions (
@@ -932,7 +993,7 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
 
 ---
 
-### 6.7.3 예시
+### 6.8.3 예시
 
 ```text
 translate_ja_ko_v1    기본 일본어 → 한국어 번역
@@ -943,7 +1004,7 @@ translate_v4    용어집 준수 강화
 
 ---
 
-## 6.8 eval_runs
+## 6.9 eval_runs
 
 하네스 평가 실행 1회를 저장한다.
 
@@ -951,7 +1012,7 @@ translate_v4    용어집 준수 강화
 
 ---
 
-### 6.8.1 용도
+### 6.9.1 용도
 
 ```text
 평가 실행 단위 저장
@@ -962,7 +1023,7 @@ translate_v4    용어집 준수 강화
 
 ---
 
-### 6.8.2 DDL
+### 6.9.2 DDL
 
 ```sql
 CREATE TABLE IF NOT EXISTS eval_runs (
@@ -994,13 +1055,13 @@ CREATE TABLE IF NOT EXISTS eval_runs (
 
 ---
 
-## 6.9 eval_results
+## 6.10 eval_results
 
 하네스 평가 케이스별 결과를 저장한다.
 
 ---
 
-### 6.9.1 용도
+### 6.10.1 용도
 
 ```text
 실패 케이스 추적
@@ -1011,7 +1072,7 @@ regression test 관리
 
 ---
 
-### 6.9.2 DDL
+### 6.10.2 DDL
 
 ```sql
 CREATE TABLE IF NOT EXISTS eval_results (
@@ -1038,7 +1099,7 @@ CREATE TABLE IF NOT EXISTS eval_results (
 
 ---
 
-## 6.10 user_settings
+## 6.11 user_settings
 
 사용자의 기본 번역 설정을 저장한다.
 
@@ -1046,7 +1107,7 @@ CREATE TABLE IF NOT EXISTS eval_results (
 
 ---
 
-### 6.10.1 용도
+### 6.11.1 용도
 
 ```text
 기본 번역 스타일 저장
@@ -1058,7 +1119,7 @@ CREATE TABLE IF NOT EXISTS eval_results (
 
 ---
 
-### 6.10.2 DDL
+### 6.11.2 DDL
 
 ```sql
 CREATE TABLE IF NOT EXISTS user_settings (
@@ -1118,6 +1179,9 @@ ON glossary_terms(source_term);
 
 CREATE INDEX IF NOT EXISTS idx_glossary_terms_active
 ON glossary_terms(is_active);
+
+CREATE INDEX IF NOT EXISTS idx_glossary_candidates_status
+ON glossary_candidates(status);
 
 CREATE INDEX IF NOT EXISTS idx_translation_cache_source_hash
 ON translation_cache(source_hash);
@@ -1351,6 +1415,25 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     UNIQUE (glossary_set_id, source_lang, target_lang, source_term)
 );
 
+CREATE TABLE IF NOT EXISTS glossary_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
+    source_term TEXT NOT NULL,
+    suggested_target_term TEXT NOT NULL,
+
+    source_text TEXT NOT NULL,
+    model_translation TEXT NOT NULL,
+    user_corrected_translation TEXT NOT NULL,
+
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS translation_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -1506,6 +1589,9 @@ ON glossary_terms(source_term);
 CREATE INDEX IF NOT EXISTS idx_glossary_terms_active
 ON glossary_terms(is_active);
 
+CREATE INDEX IF NOT EXISTS idx_glossary_candidates_status
+ON glossary_candidates(status);
+
 CREATE INDEX IF NOT EXISTS idx_translation_cache_source_hash
 ON translation_cache(source_hash);
 
@@ -1550,6 +1636,15 @@ AFTER UPDATE ON glossary_terms
 FOR EACH ROW
 BEGIN
     UPDATE glossary_terms
+    SET updated_at = CURRENT_TIMESTAMP
+    WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_glossary_candidates_updated_at
+AFTER UPDATE ON glossary_candidates
+FOR EACH ROW
+BEGIN
+    UPDATE glossary_candidates
     SET updated_at = CURRENT_TIMESTAMP
     WHERE id = OLD.id;
 END;

@@ -224,6 +224,7 @@ prompt에 넣을 glossary context 생성
 현재 chunk에 등장하는 source_term 또는 alias가 있는 항목만 선별한다.
 source_lang과 target_lang이 요청 언어와 일치하는 항목만 사용한다.
 is_active=false인 항목은 사용하지 않는다.
+is_active=false인 항목은 prompt glossary context와 cache glossary hash에 포함하지 않는다.
 MAX_GLOSSARY_TERMS_PER_CHUNK=30
 MAX_GLOSSARY_CONTEXT_CHARS=1500
 ```
@@ -248,6 +249,7 @@ Prompt 삽입 형식:
 
 `use_glossary=false`이면 glossary context를 prompt에 포함하지 않는다.
 캐시 키에 사용하는 glossary hash는 전체 용어집이 아니라 현재 chunk에 선별된 용어만 기준으로 생성한다.
+비활성 용어는 선별 대상에서 제외하므로 용어를 비활성화해도 prompt와 glossary hash에 남지 않는다.
 
 ---
 

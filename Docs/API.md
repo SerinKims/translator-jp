@@ -308,6 +308,76 @@ Response:
 
 `GET /api/glossary`는 위 응답 객체의 배열을 반환한다.
 
+### 7.3 용어집 수정
+
+```http
+PATCH /api/glossary/{term_id}
+```
+
+Request는 `POST /api/glossary`와 같은 필드의 부분 집합을 받는다. `is_active=true`로 PATCH하면 비활성 용어를 재활성화할 수 있다.
+
+정책:
+
+```text
+같은 source_lang + target_lang + source_term + target_term 조합은 중복 추가하지 않는다.
+같은 source_lang + target_lang + source_term에 다른 target_term이 있으면 409 Conflict를 반환한다.
+비활성 용어 재활성화는 POST가 아니라 PATCH로 처리한다.
+```
+
+### 7.4 용어집 비활성화
+
+```http
+DELETE /api/glossary/{term_id}
+```
+
+실제 row를 삭제하지 않고 `is_active=false`로 변경한다. 응답은 변경된 용어 객체를 반환한다.
+
+### 7.5 CSV import
+
+```http
+POST /api/glossary/import
+```
+
+본문은 raw CSV 또는 JSON `{ "text": "..." }`를 지원한다.
+
+CSV 형식:
+
+```csv
+source_lang,target_lang,source_term,target_term,term_type,priority,is_required,description,aliases
+ja,ko,王都,왕도,place,80,true,판타지 문맥에서는 수도보다 왕도가 자연스러움,"王城|王国の都"
+```
+
+Response:
+
+```json
+{
+  "imported": 2,
+  "skipped_duplicates": 1,
+  "conflicts": [
+    {
+      "row": 4,
+      "source_lang": "ja",
+      "target_lang": "ko",
+      "source_term": "王都",
+      "target_term": "수도",
+      "message": "같은 원어에 다른 번역어가 이미 등록되어 있습니다."
+    }
+  ]
+}
+```
+
+### 7.6 후보 용어
+
+```http
+GET /api/glossary/candidates
+POST /api/glossary/candidates/{candidate_id}/approve
+POST /api/glossary/candidates/{candidate_id}/reject
+```
+
+후보 상태는 `pending`, `approved`, `rejected`만 허용한다.
+
+Approve는 후보를 `glossary_terms`에 등록하고 후보 상태를 `approved`로 바꾸는 작업을 한 트랜잭션으로 처리한다. 등록 중 duplicate/conflict가 발생하면 409를 반환하고 후보는 `pending`으로 남는다. Reject는 용어를 등록하지 않고 후보 상태만 `rejected`로 변경한다.
+
 ---
 
 ## 8. 피드백 저장

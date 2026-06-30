@@ -122,6 +122,25 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     UNIQUE (glossary_set_id, source_lang, target_lang, source_term)
 );
 
+CREATE TABLE IF NOT EXISTS glossary_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
+    source_term TEXT NOT NULL,
+    suggested_target_term TEXT NOT NULL,
+
+    source_text TEXT NOT NULL,
+    model_translation TEXT NOT NULL,
+    user_corrected_translation TEXT NOT NULL,
+
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS translation_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -280,6 +299,9 @@ ON glossary_terms(source_lang, target_lang);
 CREATE INDEX IF NOT EXISTS idx_glossary_terms_active
 ON glossary_terms(is_active);
 
+CREATE INDEX IF NOT EXISTS idx_glossary_candidates_status
+ON glossary_candidates(status);
+
 CREATE INDEX IF NOT EXISTS idx_translation_cache_source_hash
 ON translation_cache(source_hash);
 
@@ -324,6 +346,15 @@ AFTER UPDATE ON glossary_terms
 FOR EACH ROW
 BEGIN
     UPDATE glossary_terms
+    SET updated_at = CURRENT_TIMESTAMP
+    WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_glossary_candidates_updated_at
+AFTER UPDATE ON glossary_candidates
+FOR EACH ROW
+BEGIN
+    UPDATE glossary_candidates
     SET updated_at = CURRENT_TIMESTAMP
     WHERE id = OLD.id;
 END;

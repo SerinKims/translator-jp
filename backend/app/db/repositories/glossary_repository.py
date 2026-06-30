@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.db.models import GlossarySet, GlossaryTerm
+from app.db.models import GlossaryCandidate, GlossarySet, GlossaryTerm
 
 
 class GlossaryRepository:
@@ -46,6 +46,7 @@ class GlossaryRepository:
         is_required: bool = True,
         is_case_sensitive: bool = False,
         is_active: bool = True,
+        commit: bool = True,
     ) -> GlossaryTerm:
         term = GlossaryTerm(
             glossary_set_id=glossary_set_id,
@@ -62,9 +63,80 @@ class GlossaryRepository:
             is_active=int(is_active),
         )
         self.db.add(term)
-        self.db.commit()
-        self.db.refresh(term)
+        if commit:
+            self.db.commit()
+            self.db.refresh(term)
+        else:
+            self.db.flush()
         return term
+
+    def get_term(self, term_id: int) -> GlossaryTerm | None:
+        return self.db.get(GlossaryTerm, term_id)
+
+    def find_terms_by_source(
+        self,
+        *,
+        source_lang: str,
+        target_lang: str,
+        source_term: str,
+    ) -> list[GlossaryTerm]:
+        statement = select(GlossaryTerm).where(
+            GlossaryTerm.source_lang == source_lang,
+            GlossaryTerm.target_lang == target_lang,
+            GlossaryTerm.source_term == source_term,
+        )
+        return list(self.db.scalars(statement))
+
+    def update_term(
+        self,
+        term_id: int,
+        *,
+        source_lang: str | None = None,
+        target_lang: str | None = None,
+        source_term: str | None = None,
+        target_term: str | None = None,
+        term_type: str | None = None,
+        description: str | None = None,
+        aliases: list[str] | None = None,
+        priority: int | None = None,
+        is_required: bool | None = None,
+        is_active: bool | None = None,
+        commit: bool = True,
+    ) -> GlossaryTerm | None:
+        term = self.get_term(term_id)
+        if term is None:
+            return None
+
+        if source_lang is not None:
+            term.source_lang = source_lang
+        if target_lang is not None:
+            term.target_lang = target_lang
+        if source_term is not None:
+            term.source_term = source_term
+        if target_term is not None:
+            term.target_term = target_term
+        if term_type is not None:
+            term.term_type = term_type
+        if description is not None:
+            term.description = description
+        if aliases is not None:
+            term.aliases = self._dump_aliases(aliases)
+        if priority is not None:
+            term.priority = priority
+        if is_required is not None:
+            term.is_required = int(is_required)
+        if is_active is not None:
+            term.is_active = int(is_active)
+
+        if commit:
+            self.db.commit()
+            self.db.refresh(term)
+        else:
+            self.db.flush()
+        return term
+
+    def deactivate_term(self, term_id: int) -> GlossaryTerm | None:
+        return self.update_term(term_id, is_active=False)
 
     def list_terms(
         self,
@@ -100,6 +172,68 @@ class GlossaryRepository:
             active_only=True,
         )
 
+    def create_candidate(
+        self,
+        *,
+        source_lang: str,
+        target_lang: str,
+        source_term: str,
+        suggested_target_term: str,
+        source_text: str,
+        model_translation: str,
+        user_corrected_translation: str,
+        status: str = "pending",
+        commit: bool = True,
+    ) -> GlossaryCandidate:
+        candidate = GlossaryCandidate(
+            source_lang=source_lang,
+            target_lang=target_lang,
+            source_term=source_term,
+            suggested_target_term=suggested_target_term,
+            source_text=source_text,
+            model_translation=model_translation,
+            user_corrected_translation=user_corrected_translation,
+            status=status,
+        )
+        self.db.add(candidate)
+        if commit:
+            self.db.commit()
+            self.db.refresh(candidate)
+        else:
+            self.db.flush()
+        return candidate
+
+    def get_candidate(self, candidate_id: int) -> GlossaryCandidate | None:
+        return self.db.get(GlossaryCandidate, candidate_id)
+
+    def list_candidates(self, *, status: str | None = None) -> list[GlossaryCandidate]:
+        statement = select(GlossaryCandidate)
+        if status is not None:
+            statement = statement.where(GlossaryCandidate.status == status)
+        statement = statement.order_by(
+            GlossaryCandidate.created_at.desc(),
+            GlossaryCandidate.id.desc(),
+        )
+        return list(self.db.scalars(statement))
+
+    def update_candidate_status(
+        self,
+        candidate_id: int,
+        *,
+        status: str,
+        commit: bool = True,
+    ) -> GlossaryCandidate | None:
+        candidate = self.get_candidate(candidate_id)
+        if candidate is None:
+            return None
+        candidate.status = status
+        if commit:
+            self.db.commit()
+            self.db.refresh(candidate)
+        else:
+            self.db.flush()
+        return candidate
+
     def _dump_aliases(self, aliases: list[str]) -> str:
         cleaned = [alias for alias in aliases if alias]
         return json.dumps(cleaned, ensure_ascii=False)
@@ -109,8 +243,50 @@ class GlossaryRepository:
         if bind.dialect.name != "sqlite":
             return
 
+        self.db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS glossary_candidates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_lang TEXT NOT NULL DEFAULT 'ja',
+                    target_lang TEXT NOT NULL DEFAULT 'ko',
+                    source_term TEXT NOT NULL,
+                    suggested_target_term TEXT NOT NULL,
+                    source_text TEXT NOT NULL,
+                    model_translation TEXT NOT NULL,
+                    user_corrected_translation TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'approved', 'rejected')),
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        self.db.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_glossary_candidates_status "
+                "ON glossary_candidates(status)"
+            )
+        )
+        self.db.execute(
+            text(
+                """
+                CREATE TRIGGER IF NOT EXISTS trg_glossary_candidates_updated_at
+                AFTER UPDATE ON glossary_candidates
+                FOR EACH ROW
+                BEGIN
+                    UPDATE glossary_candidates
+                    SET updated_at = CURRENT_TIMESTAMP
+                    WHERE id = OLD.id;
+                END
+                """
+            )
+        )
+
         rows = self.db.execute(text("PRAGMA table_info(glossary_terms)")).mappings().all()
         if not rows:
+            self.db.commit()
             return
 
         existing_columns = {str(row["name"]) for row in rows}
@@ -134,7 +310,7 @@ class GlossaryRepository:
                     "ON glossary_terms(source_lang, target_lang)"
                 )
             )
-            self.db.commit()
+        self.db.commit()
 
 
 def parse_aliases(value: Any) -> list[str]:
