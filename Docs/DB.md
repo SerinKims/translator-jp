@@ -1,5 +1,39 @@
 # DB
 
+## 2026-06-30 Page Translation Schema
+
+`[newpage]` input is stored as a page hierarchy:
+
+```text
+translation_jobs
+  -> translation_pages
+      -> translation_chunks
+```
+
+New table: `translation_pages`
+
+- `id`
+- `job_id`
+- `page_index`
+- `page_title`
+- `source_text`
+- `translated_text`
+- `status`
+- `total_chunks`
+- `completed_chunks`
+- `failed_chunks`
+- `elapsed_ms`
+- `error_message`
+- `created_at`
+- `updated_at`
+
+`translation_chunks` now has `page_id`.
+
+- `page_id` references `translation_pages.id`.
+- Chunk indexes are page-local.
+- The old `UNIQUE(job_id, chunk_index)` constraint is replaced by
+  `UNIQUE(page_id, chunk_index)`.
+
 ## 1. 개요
 
 이 문서는 `gemma4:26b-a4b-it-q4_K_M` 모델을 사용한 일본어 → 한국어 웹소설 번역 사이트의 데이터베이스 구조를 정의한다.

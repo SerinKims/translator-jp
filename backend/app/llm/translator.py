@@ -8,8 +8,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.models import TranslationJob
+from app.db.models import TranslationJob, TranslationPage
 from app.db.repositories.chunk_repository import ChunkRepository
+from app.db.repositories.page_repository import PageRepository
 from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.ollama_client import (
     OLLAMA_EMPTY_RESPONSE_MESSAGE,
@@ -23,14 +24,14 @@ from app.schemas.translation import (
     TranslationRequest,
     TranslationResponse,
 )
+from app.services.cache import (
+    TranslationCacheService,
+    build_cache_key,
+)
 from app.services.chunker import (
     CHUNK_OVERLAP_PARAGRAPHS,
     MAX_CHARS_PER_CHUNK,
     chunk_text,
-)
-from app.services.cache import (
-    TranslationCacheService,
-    build_cache_key,
 )
 from app.services.glossary import (
     SelectedGlossaryTerm,
@@ -38,7 +39,6 @@ from app.services.glossary import (
     make_selected_glossary_hash,
     select_glossary_terms_for_text,
 )
-
 
 MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 PROMPT_VERSION = "translate_ja_ko_v1"
@@ -72,6 +72,7 @@ class TranslationRunOptions:
     think: str | bool
     options: dict[str, Any] | None
     stream: bool = False
+    translate_scope: str = "first_page"
     page_index: int = 0
 
 
@@ -119,6 +120,7 @@ class TranslationService:
             think=request.think,
             options=request.options,
             stream=request.stream,
+            translate_scope=request.translate_scope,
             page_index=request.page_index,
         )
         self._validate_run_options(run_options, text=request.text)
@@ -164,6 +166,7 @@ class TranslationService:
         think: str | bool = False,
         options: dict[str, Any] | None = None,
         stream: bool = False,
+        translate_scope: str = "first_page",
         page_index: int = 0,
     ) -> TranslationResponse:
         job = TranslationRepository(self.db).get_job(job_id)
@@ -181,6 +184,7 @@ class TranslationService:
             think=think,
             options=options,
             stream=stream,
+            translate_scope=translate_scope,
             page_index=page_index,
         )
         self._validate_run_options(run_options, text=job.original_text)
@@ -207,6 +211,7 @@ class TranslationService:
 
         translation_repository = TranslationRepository(self.db)
         chunk_repository = ChunkRepository(self.db)
+        page_repository = PageRepository(self.db)
         cache_service = TranslationCacheService(self.db)
         active_glossary_terms = []
         if run_options.use_glossary:
@@ -218,12 +223,110 @@ class TranslationService:
             )
         translation_repository.update_job(job.id, status="running")
 
+        pages = page_repository.ensure_pages_for_job(job)
+        selected_pages = self._select_pages(
+            pages,
+            translate_scope=run_options.translate_scope,
+            page_index=run_options.page_index,
+        )
+        translated_pages: dict[int, str] = {}
+        selected_chunk_responses: list[TranslationChunkResponse] = []
+        failed_messages: list[str] = []
+        cache_hit = False
+
+        for page in selected_pages:
+            if page.status == "completed" and page.translated_text is not None:
+                translated_pages[page.page_index] = page.translated_text
+                selected_chunk_responses.extend(
+                    self._chunk_responses_from_db(
+                        chunk_repository.list_chunks(job_id=job.id, page_id=page.id),
+                        run_options=run_options,
+                    )
+                )
+                continue
+
+            page_result = await self._translate_page(
+                job=job,
+                page=page,
+                run_options=run_options,
+                prompt_version=prompt_version,
+                system_prompt=system_prompt,
+                active_glossary_terms=active_glossary_terms,
+                chunk_repository=chunk_repository,
+                page_repository=page_repository,
+                cache_service=cache_service,
+            )
+            translated_pages[page.page_index] = page_result["translated_text"]
+            selected_chunk_responses.extend(page_result["chunk_responses"])
+            failed_messages.extend(page_result["failed_messages"])
+            cache_hit = cache_hit or page_result["cache_hit"]
+
+        translated_text = "\n\n".join(translated_pages[index] for index in sorted(translated_pages))
+        all_pages = page_repository.list_pages(job_id=job.id)
+        completed_count = sum(page.completed_chunks for page in all_pages)
+        failed_count = sum(page.failed_chunks for page in all_pages)
+        total_chunks = sum(page.total_chunks for page in all_pages)
+        elapsed_ms = self._elapsed_ms(started_at)
+        job_translated_text = "\n\n".join(
+            page.translated_text
+            for page in all_pages
+            if page.translated_text is not None and page.status == "completed"
+        )
+        status = self._job_status(
+            completed_count=completed_count,
+            failed_count=failed_count,
+            total_pages=len(all_pages),
+            completed_pages=sum(1 for page in all_pages if page.status == "completed"),
+        )
+        translation_repository.update_job(
+            job.id,
+            translated_text=job_translated_text or translated_text,
+            status=status,
+            total_chunks=total_chunks,
+            completed_chunks=completed_count,
+            failed_chunks=failed_count,
+            elapsed_ms=elapsed_ms,
+            error_message=failed_messages[0] if failed_messages else None,
+        )
+        current_page_index = selected_pages[0].page_index if selected_pages else 0
+
+        return TranslationResponse(
+            job_id=job.id,
+            source_type="pasted_text" if job.source_site == "manual" else job.source_site,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            current_page_index=current_page_index,
+            total_pages=len(all_pages),
+            has_next_page=current_page_index < len(all_pages) - 1,
+            translated_text=translated_text,
+            model=self.model_name,
+            prompt_version=prompt_version,
+            style=run_options.style,
+            elapsed_ms=elapsed_ms,
+            cache_hit=cache_hit,
+            chunks=sorted(selected_chunk_responses, key=lambda item: item.index),
+        )
+
+    async def _translate_page(
+        self,
+        *,
+        job: TranslationJob,
+        page: TranslationPage,
+        run_options: TranslationRunOptions,
+        prompt_version: str,
+        system_prompt: str,
+        active_glossary_terms: list[Any],
+        chunk_repository: ChunkRepository,
+        page_repository: PageRepository,
+        cache_service: TranslationCacheService,
+    ) -> dict[str, Any]:
+        page_started_at = time.perf_counter()
         chunks = chunk_text(
-            job.original_text,
+            page.source_text,
             max_chars_per_chunk=self.max_chars_per_chunk,
             overlap_paragraphs=self.chunk_overlap_paragraphs,
         )
-        translation_repository.update_job(job.id, total_chunks=len(chunks))
+        page_repository.update_page(page.id, status="running", total_chunks=len(chunks))
 
         translated_chunks: list[tuple[int, str]] = []
         chunk_responses: list[TranslationChunkResponse] = []
@@ -233,6 +336,7 @@ class TranslationService:
         for chunk in chunks:
             chunk_repository.create_chunk(
                 job_id=job.id,
+                page_id=page.id,
                 chunk_index=chunk["index"],
                 source_text=chunk["source_text"],
                 context_before=chunk["context_before"],
@@ -241,6 +345,7 @@ class TranslationService:
             )
             chunk_repository.update_status(
                 job_id=job.id,
+                page_id=page.id,
                 chunk_index=chunk["index"],
                 status="running",
             )
@@ -270,6 +375,7 @@ class TranslationService:
                     translated_text = cached.translated_text
                     chunk_repository.update_status(
                         job_id=job.id,
+                        page_id=page.id,
                         chunk_index=chunk["index"],
                         status="completed",
                         translated_text=translated_text,
@@ -308,6 +414,7 @@ class TranslationService:
                     )
                 chunk_repository.update_status(
                     job_id=job.id,
+                    page_id=page.id,
                     chunk_index=chunk["index"],
                     status="completed",
                     translated_text=translated_text,
@@ -340,6 +447,7 @@ class TranslationService:
                 failed_messages.append(message)
                 chunk_repository.update_status(
                     job_id=job.id,
+                    page_id=page.id,
                     chunk_index=chunk["index"],
                     status="failed",
                     error_message=message,
@@ -357,34 +465,59 @@ class TranslationService:
         translated_text = self._merge_translated_chunks(translated_chunks)
         completed_count = len(translated_chunks)
         failed_count = len(failed_messages)
-        elapsed_ms = self._elapsed_ms(started_at)
-        status = self._job_status(completed_count=completed_count, failed_count=failed_count)
-        translation_repository.update_job(
-            job.id,
+        page_repository.update_page(
+            page.id,
             translated_text=translated_text,
-            status=status,
+            status=self._page_status(
+                completed_count=completed_count,
+                failed_count=failed_count,
+            ),
             completed_chunks=completed_count,
             failed_chunks=failed_count,
-            elapsed_ms=elapsed_ms,
+            elapsed_ms=self._elapsed_ms(page_started_at),
             error_message=failed_messages[0] if failed_messages else None,
         )
+        return {
+            "translated_text": translated_text,
+            "chunk_responses": chunk_responses,
+            "failed_messages": failed_messages,
+            "cache_hit": cache_hit,
+        }
 
-        return TranslationResponse(
-            job_id=job.id,
-            source_type="pasted_text" if job.source_site == "manual" else job.source_site,
-            source_lang=run_options.source_lang,
-            target_lang=run_options.target_lang,
-            current_page_index=run_options.page_index,
-            total_pages=1,
-            has_next_page=False,
-            translated_text=translated_text,
-            model=self.model_name,
-            prompt_version=prompt_version,
-            style=run_options.style,
-            elapsed_ms=elapsed_ms,
-            cache_hit=cache_hit,
-            chunks=sorted(chunk_responses, key=lambda item: item.index),
-        )
+    def _select_pages(
+        self,
+        pages: list[TranslationPage],
+        *,
+        translate_scope: str,
+        page_index: int,
+    ) -> list[TranslationPage]:
+        if translate_scope == "first_page":
+            page_index = 0
+        elif translate_scope == "all_pages":
+            return pages
+        elif translate_scope != "current_page":
+            raise TranslationServiceError("Unsupported translate_scope.", status_code=400)
+
+        for page in pages:
+            if page.page_index == page_index:
+                return [page]
+        raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+    def _chunk_responses_from_db(
+        self,
+        chunks: list[Any],
+        *,
+        run_options: TranslationRunOptions,
+    ) -> list[TranslationChunkResponse]:
+        return [
+            TranslationChunkResponse(
+                index=chunk.chunk_index,
+                source_lang=run_options.source_lang,
+                target_lang=run_options.target_lang,
+                status=chunk.status,
+            )
+            for chunk in chunks
+        ]
 
     def _validate_request(self, request: TranslationRequest) -> None:
         run_options = TranslationRunOptions(
@@ -398,6 +531,7 @@ class TranslationService:
             think=request.think,
             options=request.options,
             stream=request.stream,
+            translate_scope=request.translate_scope,
             page_index=request.page_index,
         )
         self._validate_run_options(run_options, text=request.text)
@@ -409,6 +543,10 @@ class TranslationService:
             raise TranslationServiceError(ONLY_KO_TARGET_MESSAGE, status_code=400)
         if run_options.stream:
             raise TranslationServiceError(STREAM_NOT_SUPPORTED_MESSAGE, status_code=400)
+        if run_options.page_index < 0:
+            raise TranslationServiceError(
+                "page_index must be greater than or equal to 0.", status_code=400
+            )
 
     def _build_messages(
         self,
@@ -463,12 +601,28 @@ class TranslationService:
     def _merge_translated_chunks(self, translated_chunks: list[tuple[int, str]]) -> str:
         return "\n\n".join(text for _, text in sorted(translated_chunks))
 
-    def _job_status(self, *, completed_count: int, failed_count: int) -> str:
+    def _page_status(self, *, completed_count: int, failed_count: int) -> str:
         if failed_count == 0:
             return "completed"
         if completed_count == 0:
             return "failed"
         return "partial_failed"
+
+    def _job_status(
+        self,
+        *,
+        completed_count: int,
+        failed_count: int,
+        total_pages: int,
+        completed_pages: int,
+    ) -> str:
+        if failed_count > 0 and completed_count == 0:
+            return "failed"
+        if failed_count > 0:
+            return "partial_failed"
+        if completed_pages == total_pages:
+            return "completed"
+        return "pending_translation"
 
     def _map_model_error(self, exc: Exception) -> str:
         if isinstance(exc, PromptLoaderError):

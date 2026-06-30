@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -21,8 +21,20 @@ class TranslationRequest(OllamaRequestOptions):
     text: str
     source_lang: str = "ja"
     target_lang: str = "ko"
-    translate_scope: str = "first_page"
+    translate_scope: Literal["first_page", "current_page", "all_pages"] = "first_page"
     page_index: int = 0
+    style: str = "webnovel"
+    honorific_policy: str = "preserve"
+    preserve_names: bool = True
+    use_glossary: bool = True
+    use_cache: bool = True
+    stream: bool = False
+
+
+class PageTranslateRequest(OllamaRequestOptions):
+    source_lang: str = "ja"
+    target_lang: str = "ko"
+    translate_scope: Literal["current_page"] = "current_page"
     style: str = "webnovel"
     honorific_policy: str = "preserve"
     preserve_names: bool = True

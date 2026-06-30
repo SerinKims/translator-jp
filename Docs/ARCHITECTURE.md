@@ -1,5 +1,26 @@
 # ARCHITECTURE
 
+## 2026-06-30 Page Translation Flow
+
+`[newpage]` sources are translated through a page layer:
+
+```text
+API route
+  -> TranslationService
+      -> PageRepository / page_splitter
+      -> chunker for selected page.source_text
+      -> ChunkRepository
+      -> cache / glossary / Ollama
+```
+
+Responsibilities:
+
+- `page_splitter.py` detects `[newpage]`, removes empty pages, and assigns 0-based indexes.
+- `PageRepository` persists and reuses page records under a translation job.
+- `ChunkRepository` stores chunks under `translation_pages.id`.
+- `TranslationService` selects pages by `translate_scope` before chunking.
+- `history.py` exposes `POST /api/translations/{job_id}/pages/{page_index}/translate`.
+
 ## 1. 시스템 개요
 
 이 시스템은 Frontend, Backend, Local LLM Runtime, SQLite DB, Harness로 구성된다.
