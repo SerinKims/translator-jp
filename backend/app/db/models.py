@@ -165,6 +165,26 @@ class GlossaryTerm(TimestampMixin, Base):
     glossary_set: Mapped[GlossarySet | None] = relationship(back_populates="terms")
 
 
+class GlossaryCandidate(TimestampMixin, Base):
+    __tablename__ = "glossary_candidates"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_glossary_candidates_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_lang: Mapped[str] = mapped_column(String, nullable=False, default="ja")
+    target_lang: Mapped[str] = mapped_column(String, nullable=False, default="ko")
+    source_term: Mapped[str] = mapped_column(String, nullable=False)
+    suggested_target_term: Mapped[str] = mapped_column(String, nullable=False)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    model_translation: Mapped[str] = mapped_column(Text, nullable=False)
+    user_corrected_translation: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+
+
 class TranslationCache(TimestampMixin, Base):
     __tablename__ = "translation_cache"
 
