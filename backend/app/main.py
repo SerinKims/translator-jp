@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.routes.fetch import router as fetch_router
 from app.api.routes.glossary import router as glossary_router
 from app.api.routes.health import router as health_router
+from app.api.routes.history import router as history_router
 from app.api.routes.translate import router as translate_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -16,6 +17,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(fetch_router, prefix="/api")
     app.include_router(glossary_router, prefix="/api")
+    app.include_router(history_router, prefix="/api")
     app.include_router(translate_router, prefix="/api")
 
     return app

@@ -50,10 +50,39 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS translation_pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    job_id INTEGER NOT NULL,
+    page_index INTEGER NOT NULL,
+    page_title TEXT,
+
+    source_text TEXT NOT NULL,
+    translated_text TEXT,
+
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'running', 'completed', 'partial_failed', 'failed', 'skipped')),
+
+    total_chunks INTEGER NOT NULL DEFAULT 0,
+    completed_chunks INTEGER NOT NULL DEFAULT 0,
+    failed_chunks INTEGER NOT NULL DEFAULT 0,
+
+    elapsed_ms INTEGER,
+    error_message TEXT,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (job_id) REFERENCES translation_jobs(id) ON DELETE CASCADE,
+
+    UNIQUE (job_id, page_index)
+);
+
 CREATE TABLE IF NOT EXISTS translation_chunks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
     job_id INTEGER NOT NULL,
+    page_id INTEGER NOT NULL,
     chunk_index INTEGER NOT NULL,
 
     source_text TEXT NOT NULL,
@@ -77,8 +106,9 @@ CREATE TABLE IF NOT EXISTS translation_chunks (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (job_id) REFERENCES translation_jobs(id) ON DELETE CASCADE,
+    FOREIGN KEY (page_id) REFERENCES translation_pages(id) ON DELETE CASCADE,
 
-    UNIQUE (job_id, chunk_index)
+    UNIQUE (page_id, chunk_index)
 );
 
 CREATE TABLE IF NOT EXISTS glossary_sets (
@@ -287,6 +317,15 @@ ON translation_jobs(source_site, source_work_id);
 CREATE INDEX IF NOT EXISTS idx_translation_chunks_job_id
 ON translation_chunks(job_id);
 
+CREATE INDEX IF NOT EXISTS idx_translation_pages_job_id
+ON translation_pages(job_id);
+
+CREATE INDEX IF NOT EXISTS idx_translation_pages_status
+ON translation_pages(status);
+
+CREATE INDEX IF NOT EXISTS idx_translation_chunks_page_id
+ON translation_chunks(page_id);
+
 CREATE INDEX IF NOT EXISTS idx_translation_chunks_status
 ON translation_chunks(status);
 
@@ -328,6 +367,15 @@ AFTER UPDATE ON translation_chunks
 FOR EACH ROW
 BEGIN
     UPDATE translation_chunks
+    SET updated_at = CURRENT_TIMESTAMP
+    WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_translation_pages_updated_at
+AFTER UPDATE ON translation_pages
+FOR EACH ROW
+BEGIN
+    UPDATE translation_pages
     SET updated_at = CURRENT_TIMESTAMP
     WHERE id = OLD.id;
 END;

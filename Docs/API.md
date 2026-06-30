@@ -1,5 +1,26 @@
 # API Specification
 
+## 2026-06-30 Page Translation Contract
+
+When `text` contains `[newpage]`, translation is page-scoped.
+
+- `POST /api/translate` defaults to `translate_scope=first_page` and `page_index=0`.
+- Supported `translate_scope` values are `first_page`, `current_page`, and `all_pages`.
+- `first_page` translates only page `0`.
+- `current_page` translates only the supplied `page_index`.
+- `all_pages` translates every page only when explicitly requested.
+- Completed pages are reused from `translation_pages` before checking cache or calling the LLM.
+- Response fields include `current_page_index`, `total_pages`, and `has_next_page`.
+
+Additional endpoint:
+
+```http
+POST /api/translations/{job_id}/pages/{page_index}/translate
+```
+
+This endpoint translates or retries one selected page and returns the same
+`TranslationResponse` shape as `POST /api/translate`.
+
 ## 1. 공통 원칙
 
 - API route는 request/response schema를 명확히 정의한다.

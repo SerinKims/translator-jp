@@ -1,5 +1,23 @@
 # LLM / Prompt / Chunking 정책
 
+## 2026-06-30 Page-Aware Chunking
+
+Before chunking, source text is split on `[newpage]`.
+
+- Empty pages are removed.
+- Page indexes start at `0`.
+- Text without `[newpage]` is treated as one page.
+- `TranslationService` chunks only the selected page's `source_text`.
+- The service must not always chunk `translation_jobs.original_text`.
+- Completed pages in `translation_pages` are reused before cache lookup or LLM calls.
+- Existing chunking, glossary, and cache logic still run below the selected page.
+
+Translate scope:
+
+- `first_page`: translate page `0`.
+- `current_page`: translate the requested `page_index`.
+- `all_pages`: translate all pages only when explicitly requested.
+
 ## 1. 기본 Runtime
 
 ```text

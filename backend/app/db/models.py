@@ -86,12 +86,53 @@ class TranslationJob(TimestampMixin, Base):
         back_populates="job",
         cascade="all, delete-orphan",
     )
+    pages: Mapped[list[TranslationPage]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        order_by="TranslationPage.page_index",
+    )
+
+
+class TranslationPage(TimestampMixin, Base):
+    __tablename__ = "translation_pages"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'partial_failed', 'failed', 'skipped')",
+            name="ck_translation_pages_status",
+        ),
+        UniqueConstraint("job_id", "page_index", name="uq_translation_pages_job_index"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("translation_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    page_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_title: Mapped[str | None] = mapped_column(Text)
+
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    translated_text: Mapped[str | None] = mapped_column(Text)
+
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    total_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    elapsed_ms: Mapped[int | None] = mapped_column(Integer)
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+    job: Mapped[TranslationJob] = relationship(back_populates="pages")
+    chunks: Mapped[list[TranslationChunk]] = relationship(
+        back_populates="page",
+        cascade="all, delete-orphan",
+        order_by="TranslationChunk.chunk_index",
+    )
 
 
 class TranslationChunk(TimestampMixin, Base):
     __tablename__ = "translation_chunks"
     __table_args__ = (
-        UniqueConstraint("job_id", "chunk_index", name="uq_translation_chunks_job_index"),
+        UniqueConstraint("page_id", "chunk_index", name="uq_translation_chunks_page_index"),
         CheckConstraint(
             "status IN ('pending', 'running', 'completed', 'failed', 'skipped')",
             name="ck_translation_chunks_status",
@@ -101,6 +142,10 @@ class TranslationChunk(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_id: Mapped[int] = mapped_column(
         ForeignKey("translation_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    page_id: Mapped[int] = mapped_column(
+        ForeignKey("translation_pages.id", ondelete="CASCADE"),
         nullable=False,
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -118,6 +163,7 @@ class TranslationChunk(TimestampMixin, Base):
     error_message: Mapped[str | None] = mapped_column(Text)
 
     job: Mapped[TranslationJob] = relationship(back_populates="chunks")
+    page: Mapped[TranslationPage] = relationship(back_populates="chunks")
 
 
 class GlossarySet(TimestampMixin, Base):
