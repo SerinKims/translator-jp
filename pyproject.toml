@@ -1,0 +1,34 @@
+[tool.yamlfix]
+allow_duplicate_keys = false
+line_length = true
+none_representation = 'null'
+preserve_quotes = true
+quote_basic_values = false
+
+[tool.ruff]
+line-length = 100 # for lint
+indent-width = 4
+# target-version = "py311"
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 100 # for format
+
+[tool.ruff.lint]
+# line-length = 120 # don't use in tool.ruff.lint
+# - E: pycodestyle errors (PEP 8 style errors)
+# - F: Pyflakes (logical errors, unused imports, etc.)
+# - I: isort (import sorting)
+# - UP: pyupgrade (suggests syntax upgrades for newer Python versions)
+# - B: flake8-bugbear (likely bugs and design problems)
+select = ["E", "F", "UP", "B"]
+ignore = [
+  # "E501", # Ignore line length errors if desired
+  "F401", # Ignore unused imports
+]
+
+[tool.ruff.format]
+quote-style = "double"
+# quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
