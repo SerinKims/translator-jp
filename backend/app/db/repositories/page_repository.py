@@ -87,6 +87,7 @@ class PageRepository:
         failed_chunks: int | None = None,
         elapsed_ms: int | None = None,
         error_message: str | None = None,
+        clear_error_message: bool = False,
     ) -> TranslationPage | None:
         page = self.get_page_by_id(page_id)
         if page is None:
@@ -104,7 +105,9 @@ class PageRepository:
             page.failed_chunks = failed_chunks
         if elapsed_ms is not None:
             page.elapsed_ms = elapsed_ms
-        if error_message is not None:
+        if clear_error_message:
+            page.error_message = None
+        elif error_message is not None:
             page.error_message = error_message
 
         self.db.commit()

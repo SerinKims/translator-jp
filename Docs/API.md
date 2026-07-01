@@ -21,6 +21,29 @@ POST /api/translations/{job_id}/pages/{page_index}/translate
 This endpoint translates or retries one selected page and returns the same
 `TranslationResponse` shape as `POST /api/translate`.
 
+`POST /api/translations/{job_id}/pages/{page_index}/translate` accepts
+`force: false` by default. Completed pages are reused when `force=false`; when
+`force=true`, the endpoint may re-run translation for that page. Cache behavior
+still follows `use_cache`.
+
+History and retry endpoints:
+
+```http
+GET /api/translations
+GET /api/translations/{job_id}
+POST /api/translations/{job_id}/chunks/{chunk_index}/retry
+```
+
+- `GET /api/translations` returns latest jobs first, source metadata, status,
+  `total_pages`, and short source/translation previews. It does not include the
+  full `original_text`.
+- `GET /api/translations/{job_id}` returns job detail, full job text fields,
+  `translation_pages`, and `translation_chunks`.
+- Chunk retry only accepts chunks in `failed` status. It increments
+  `retry_count`, reuses the job model/prompt/options, reselects glossary terms
+  for the chunk, checks cache with the selected glossary hash, and then updates
+  chunk/page/job status counters.
+
 ## 1. 공통 원칙
 
 - API route는 request/response schema를 명확히 정의한다.

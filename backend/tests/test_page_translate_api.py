@@ -102,6 +102,29 @@ def test_translate_reuses_completed_page_from_database(db_session: Session) -> N
     assert len(fake_client.calls) == 1
 
 
+def test_translate_force_true_retranslates_completed_page(db_session: Session) -> None:
+    fake_client = FakeOllamaClient(["first page", "forced page"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+    )
+
+    try:
+        client = TestClient(app)
+        first = client.post("/api/translate", json={"text": PAGE_TEXT})
+        forced = client.post(
+            f"/api/translations/{first.json()['job_id']}/pages/0/translate",
+            json={"force": True, "use_cache": False},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert forced.status_code == 200
+    assert forced.json()["translated_text"] == "forced page"
+    assert len(fake_client.calls) == 2
+
+
 def test_translate_all_pages_requires_explicit_scope(db_session: Session) -> None:
     fake_client = FakeOllamaClient(["첫 페이지", "둘째 페이지", "셋째 페이지"])
     app.dependency_overrides[get_db] = _override_db(db_session)

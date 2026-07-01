@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
@@ -41,6 +42,7 @@ class PageTranslateRequest(OllamaRequestOptions):
     use_glossary: bool = True
     use_cache: bool = True
     stream: bool = False
+    force: bool = False
 
 
 class TranslationChunkResponse(BaseModel):
@@ -65,3 +67,75 @@ class TranslationResponse(BaseModel):
     elapsed_ms: int
     cache_hit: bool
     chunks: list[TranslationChunkResponse]
+
+
+class TranslationHistoryItem(BaseModel):
+    job_id: int
+    source_site: str
+    source_url: str | None
+    source_title: str | None
+    source_author: str | None
+    source_work_id: str | None
+    source_fetched_at: datetime | None
+    source_preview: str
+    translated_preview: str | None
+    source_lang: str
+    target_lang: str
+    model_name: str
+    prompt_version: str
+    ollama_think: str | None
+    ollama_options_json: str | None
+    style: str
+    honorific_policy: str
+    preserve_names: bool
+    status: str
+    total_pages: int
+    total_chunks: int
+    completed_chunks: int
+    failed_chunks: int
+    elapsed_ms: int | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TranslationPageHistory(BaseModel):
+    id: int
+    page_index: int
+    page_title: str | None
+    source_text: str
+    translated_text: str | None
+    status: str
+    total_chunks: int
+    completed_chunks: int
+    failed_chunks: int
+    elapsed_ms: int | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TranslationChunkHistory(BaseModel):
+    id: int
+    page_id: int
+    page_index: int | None
+    chunk_index: int
+    source_text: str
+    translated_text: str | None
+    context_before: str | None
+    context_after: str | None
+    status: str
+    retry_count: int
+    prompt_used: str | None
+    raw_model_response: str | None
+    elapsed_ms: int | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TranslationDetailResponse(TranslationHistoryItem):
+    original_text: str
+    translated_text: str | None
+    pages: list[TranslationPageHistory]
+    chunks: list[TranslationChunkHistory]

@@ -126,6 +126,7 @@ class ChunkRepository:
         elapsed_ms: int | None = None,
         error_message: str | None = None,
         increment_retry_count: bool = False,
+        clear_error_message: bool = False,
     ) -> TranslationChunk | None:
         chunk = self.get_chunk(
             job_id=job_id,
@@ -143,7 +144,9 @@ class ChunkRepository:
             chunk.raw_model_response = raw_model_response
         if elapsed_ms is not None:
             chunk.elapsed_ms = elapsed_ms
-        if error_message is not None:
+        if clear_error_message:
+            chunk.error_message = None
+        elif error_message is not None:
             chunk.error_message = error_message
         if increment_retry_count:
             chunk.retry_count += 1
