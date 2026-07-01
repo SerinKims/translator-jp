@@ -12,7 +12,6 @@ from app.schemas.fetch import (
 )
 from app.services.fetch_service import FetchService, FetchServiceError
 
-
 router = APIRouter(prefix="/fetch", tags=["fetch"])
 
 
@@ -46,6 +45,8 @@ async def fetch_and_translate_pixiv(
             url=request.url,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
+            translate_scope=request.translate_scope,
+            page_index=request.page_index,
             style=request.style,
             honorific_policy=request.honorific_policy,
             preserve_names=request.preserve_names,

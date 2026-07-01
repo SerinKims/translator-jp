@@ -18,7 +18,6 @@ from app.llm.translator import TranslationService
 from app.main import app
 from app.services.fetch_service import FetchService
 
-
 TITLE = "\u4f5c\u54c1\u30bf\u30a4\u30c8\u30eb"
 AUTHOR = "\u4f5c\u8005\u540d"
 TEXT = "\u5c0f\u8aac\u672c\u6587...\n\n\u7d9a\u304d\u3002"
@@ -184,6 +183,9 @@ def test_fetch_pixiv_translate_api_returns_translation_result(db_session: Sessio
     assert body["source_work_id"] == "12345678"
     assert body["title"] == TITLE
     assert body["author"] == AUTHOR
+    assert body["current_page_index"] == 0
+    assert body["total_pages"] == 1
+    assert body["has_next_page"] is False
     assert body["translated_text"] == "translated pixiv text"
     assert body["chunks"] == [
         {"index": 0, "source_lang": "ja", "target_lang": "ko", "status": "completed"}
