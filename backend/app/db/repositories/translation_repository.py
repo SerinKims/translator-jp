@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import TranslationJob
@@ -13,6 +13,7 @@ from app.db.models import TranslationJob
 class TranslationRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self._ensure_sqlite_language_columns()
 
     def create_job(
         self,
@@ -20,6 +21,8 @@ class TranslationRepository:
         original_text: str,
         source_language: str = "ja",
         target_language: str = "ko",
+        detected_lang: str | None = None,
+        language_confidence: float | None = None,
         source_site: str = "manual",
         source_url: str | None = None,
         source_title: str | None = None,
@@ -44,6 +47,8 @@ class TranslationRepository:
         job = TranslationJob(
             source_language=source_language,
             target_language=target_language,
+            detected_lang=detected_lang,
+            language_confidence=language_confidence,
             source_site=source_site,
             source_url=source_url,
             source_title=source_title,
@@ -95,6 +100,11 @@ class TranslationRepository:
         elapsed_ms: int | None = None,
         error_message: str | None = None,
         clear_error_message: bool = False,
+        source_language: str | None = None,
+        target_language: str | None = None,
+        detected_lang: str | None = None,
+        language_confidence: float | None = None,
+        prompt_version: str | None = None,
     ) -> TranslationJob | None:
         job = self.get_job(job_id)
         if job is None:
@@ -112,6 +122,16 @@ class TranslationRepository:
             job.failed_chunks = failed_chunks
         if elapsed_ms is not None:
             job.elapsed_ms = elapsed_ms
+        if source_language is not None:
+            job.source_language = source_language
+        if target_language is not None:
+            job.target_language = target_language
+        if detected_lang is not None:
+            job.detected_lang = detected_lang
+        if language_confidence is not None:
+            job.language_confidence = language_confidence
+        if prompt_version is not None:
+            job.prompt_version = prompt_version
         if clear_error_message:
             job.error_message = None
         elif error_message is not None:
@@ -120,6 +140,32 @@ class TranslationRepository:
         self.db.commit()
         self.db.refresh(job)
         return job
+
+    def _ensure_sqlite_language_columns(self) -> None:
+        bind = self.db.get_bind()
+        if bind.dialect.name != "sqlite":
+            return
+
+        rows = self.db.execute(text("PRAGMA table_info(translation_jobs)")).mappings().all()
+        if not rows:
+            self.db.commit()
+            return
+
+        existing_columns = {str(row["name"]) for row in rows}
+        migrations = {
+            "detected_lang": "ALTER TABLE translation_jobs ADD COLUMN detected_lang TEXT",
+            "language_confidence": (
+                "ALTER TABLE translation_jobs ADD COLUMN language_confidence REAL"
+            ),
+        }
+        changed = False
+        for column_name, statement in migrations.items():
+            if column_name in existing_columns:
+                continue
+            self.db.execute(text(statement))
+            changed = True
+        if changed:
+            self.db.commit()
 
 
 def _serialize_ollama_think(value: str | bool) -> str:

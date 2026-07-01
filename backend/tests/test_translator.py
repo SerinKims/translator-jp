@@ -19,7 +19,6 @@ from app.llm.translator import (
 )
 from app.schemas.translation import TranslationRequest
 
-
 SOURCE_TEXT = "\u5f7c\u306f\u9759\u304b\u306b\u76ee\u3092\u9589\u3058\u305f\u3002"
 
 
@@ -102,7 +101,7 @@ def test_translate_style_change_calls_ollama_again(db_session: Session) -> None:
 
 def test_translate_source_lang_change_calls_ollama_again(db_session: Session) -> None:
     async def run_test() -> None:
-        fake_client = FakeOllamaClient(["ja translation", "zxx translation"])
+        fake_client = FakeOllamaClient(["ja translation", "en translation"])
         service = TranslationService(
             db_session,
             ollama_client=fake_client,
@@ -111,11 +110,11 @@ def test_translate_source_lang_change_calls_ollama_again(db_session: Session) ->
 
         await service.translate_text(TranslationRequest(text=SOURCE_TEXT, source_lang="ja"))
         response = await service.translate_text(
-            TranslationRequest(text=SOURCE_TEXT, source_lang="zxx")
+            TranslationRequest(text=SOURCE_TEXT, source_lang="en")
         )
 
         assert response.cache_hit is False
-        assert response.translated_text == "zxx translation"
+        assert response.translated_text == "en translation"
         assert len(fake_client.calls) == 2
 
     asyncio.run(run_test())

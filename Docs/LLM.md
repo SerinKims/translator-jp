@@ -301,3 +301,28 @@ glossary_hash
 ```
 
 cache hit 시 모델을 호출하지 않고 저장된 번역 결과를 반환한다.
+## 2026-07-01 Multilingual Prompt Selection
+
+The translation service supports these source language pairs for MVP:
+
+```text
+ja -> ko
+zh-CN -> ko
+zh-TW -> ko
+en -> ko
+```
+
+Prompt files:
+
+```text
+harness/prompts/translate_ja_ko_v1.md
+harness/prompts/translate_zh_ko_v1.md
+harness/prompts/translate_en_ko_v1.md
+```
+
+`zh-CN` and `zh-TW` share `translate_zh_ko_v1`. Prompt selection, glossary
+lookup, cache key generation, and chunk persistence all use the resolved source
+language. If `source_lang=auto`, language detection runs before prompt loading.
+
+Unsupported target languages are rejected because MVP target language is only
+Korean (`ko`).

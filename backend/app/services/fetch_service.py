@@ -16,6 +16,7 @@ from app.crawler.url_validator import UnsupportedPixivUrlError, validate_pixiv_n
 from app.db.repositories.translation_repository import TranslationRepository
 from app.llm.translator import TranslationService, TranslationServiceError
 from app.schemas.fetch import PixivFetchResponse, PixivTranslateResponse
+from app.services.language_detector import UNKNOWN_LANG, detect_language
 
 
 class PixivClientProtocol(Protocol):
@@ -90,6 +91,16 @@ class FetchService:
                 raise FetchServiceError(exc.message, status_code=422) from exc
 
         status = "pending_translation" if translate_after_fetch else "fetched"
+        resolved_source_lang = source_lang
+        detected_lang = source_lang if source_lang != "auto" else None
+        language_confidence = 1.0 if source_lang != "auto" else None
+        if source_lang == "auto":
+            detection = detect_language(novel.text)
+            if detection.language != UNKNOWN_LANG:
+                resolved_source_lang = detection.language
+                detected_lang = detection.language
+                language_confidence = detection.confidence
+
         job = self.translation_repository.create_job(
             source_site="pixiv",
             source_url=novel.source_url,
@@ -98,8 +109,10 @@ class FetchService:
             source_work_id=novel.source_work_id,
             source_fetched_at=datetime.now(timezone.utc),
             original_text=novel.text,
-            source_language=source_lang,
+            source_language=resolved_source_lang,
             target_language=target_lang,
+            detected_lang=detected_lang,
+            language_confidence=language_confidence,
             style=style,
             honorific_policy=honorific_policy,
             preserve_names=preserve_names,

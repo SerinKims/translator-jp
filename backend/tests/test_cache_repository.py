@@ -18,6 +18,8 @@ def test_save_and_find_translation_cache_by_cache_key(db_session: Session) -> No
     assert found is not None
     assert found.id == cache_entry.id
     assert found.source_hash == "cache-key-a"
+    assert found.source_lang == "ja"
+    assert found.target_lang == "ko"
     assert found.glossary_hash == "selected-glossary-a"
     assert found.source_text == "source text"
     assert found.translated_text == "translated text"
@@ -64,3 +66,18 @@ def test_increment_missing_cache_key_is_safe(db_session: Session) -> None:
     repository = CacheRepository(db_session)
 
     assert repository.increment_hit_count("missing-cache-key") is None
+
+
+def test_save_translation_cache_with_language_pair(db_session: Session) -> None:
+    repository = CacheRepository(db_session)
+
+    cache_entry = repository.create_cache_entry(
+        cache_key="cache-key-en",
+        source_text="source text",
+        translated_text="translated text",
+        source_lang="en",
+        target_lang="ko",
+    )
+
+    assert cache_entry.source_lang == "en"
+    assert cache_entry.target_lang == "ko"

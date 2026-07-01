@@ -120,6 +120,8 @@ class HistoryService:
             page_id=chunk.page_id,
             page_index=page_index,
             chunk_index=chunk.chunk_index,
+            source_lang=chunk.source_lang,
+            target_lang=chunk.target_lang,
             source_text=chunk.source_text,
             translated_text=chunk.translated_text,
             context_before=chunk.context_before,

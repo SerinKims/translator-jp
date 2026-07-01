@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import TranslationChunk, TranslationJob
@@ -10,6 +10,7 @@ from app.db.repositories.page_repository import PageRepository
 class ChunkRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self._ensure_sqlite_language_columns()
 
     def create_chunk(
         self,
@@ -17,6 +18,8 @@ class ChunkRepository:
         job_id: int,
         chunk_index: int,
         source_text: str,
+        source_lang: str = "ja",
+        target_lang: str = "ko",
         page_id: int | None = None,
         page_index: int = 0,
         translated_text: str | None = None,
@@ -41,6 +44,8 @@ class ChunkRepository:
         )
         if existing is not None:
             existing.source_text = source_text
+            existing.source_lang = source_lang
+            existing.target_lang = target_lang
             existing.context_before = context_before
             existing.context_after = context_after
             existing.status = status
@@ -57,6 +62,8 @@ class ChunkRepository:
             job_id=job_id,
             page_id=resolved_page_id,
             chunk_index=chunk_index,
+            source_lang=source_lang,
+            target_lang=target_lang,
             source_text=source_text,
             translated_text=translated_text,
             context_before=context_before,
@@ -175,3 +182,31 @@ class ChunkRepository:
             if page.page_index == page_index:
                 return page.id
         raise ValueError(f"translation page not found: job_id={job_id}, page_index={page_index}")
+
+    def _ensure_sqlite_language_columns(self) -> None:
+        bind = self.db.get_bind()
+        if bind.dialect.name != "sqlite":
+            return
+
+        rows = self.db.execute(text("PRAGMA table_info(translation_chunks)")).mappings().all()
+        if not rows:
+            self.db.commit()
+            return
+
+        existing_columns = {str(row["name"]) for row in rows}
+        migrations = {
+            "source_lang": (
+                "ALTER TABLE translation_chunks ADD COLUMN source_lang TEXT NOT NULL DEFAULT 'ja'"
+            ),
+            "target_lang": (
+                "ALTER TABLE translation_chunks ADD COLUMN target_lang TEXT NOT NULL DEFAULT 'ko'"
+            ),
+        }
+        changed = False
+        for column_name, statement in migrations.items():
+            if column_name in existing_columns:
+                continue
+            self.db.execute(text(statement))
+            changed = True
+        if changed:
+            self.db.commit()
