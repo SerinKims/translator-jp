@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.translation import OllamaRequestOptions, TranslationChunkResponse
@@ -12,6 +14,8 @@ class PixivTranslateRequest(OllamaRequestOptions):
     url: str
     source_lang: str = "ja"
     target_lang: str = "ko"
+    translate_scope: Literal["first_page", "current_page", "all_pages"] = "first_page"
+    page_index: int = 0
     style: str = "webnovel"
     honorific_policy: str = "preserve"
     preserve_names: bool = True
@@ -40,6 +44,9 @@ class PixivTranslateResponse(BaseModel):
     source_work_id: str
     title: str
     author: str
+    current_page_index: int
+    total_pages: int
+    has_next_page: bool
     translated_text: str
     model: str
     prompt_version: str
