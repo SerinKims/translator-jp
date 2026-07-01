@@ -42,6 +42,11 @@ from app.services.glossary import (
 
 MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 PROMPT_VERSION = "translate_ja_ko_v1"
+CHUNK_NOT_FOUND_MESSAGE = "Translation chunk not found."
+CHUNK_RETRY_NOT_FAILED_MESSAGE = "Only failed chunks can be retried."
+CHUNK_RETRY_AMBIGUOUS_MESSAGE = (
+    "Multiple failed chunks have the same index. Retry by page is required."
+)
 
 EMPTY_TEXT_MESSAGE = "번역할 텍스트를 입력해주세요."
 ONLY_KO_TARGET_MESSAGE = "현재 목표 언어는 한국어만 지원합니다."
@@ -74,6 +79,7 @@ class TranslationRunOptions:
     stream: bool = False
     translate_scope: str = "first_page"
     page_index: int = 0
+    force: bool = False
 
 
 class TranslationServiceError(RuntimeError):
@@ -168,6 +174,7 @@ class TranslationService:
         stream: bool = False,
         translate_scope: str = "first_page",
         page_index: int = 0,
+        force: bool = False,
     ) -> TranslationResponse:
         job = TranslationRepository(self.db).get_job(job_id)
         if job is None:
@@ -186,10 +193,207 @@ class TranslationService:
             stream=stream,
             translate_scope=translate_scope,
             page_index=page_index,
+            force=force,
         )
         self._validate_run_options(run_options, text=job.original_text)
 
         return await self._translate_job(job=job, run_options=run_options)
+
+    async def retry_failed_chunk(self, job_id: int, chunk_index: int) -> TranslationResponse:
+        started_at = time.perf_counter()
+        translation_repository = TranslationRepository(self.db)
+        chunk_repository = ChunkRepository(self.db)
+        page_repository = PageRepository(self.db)
+        cache_service = TranslationCacheService(self.db)
+
+        job = translation_repository.get_job(job_id)
+        if job is None:
+            raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+        matching_chunks = [
+            chunk
+            for chunk in chunk_repository.list_chunks(job_id=job.id)
+            if chunk.chunk_index == chunk_index
+        ]
+        if not matching_chunks:
+            raise TranslationServiceError(CHUNK_NOT_FOUND_MESSAGE, status_code=404)
+
+        failed_chunks = [chunk for chunk in matching_chunks if chunk.status == "failed"]
+        if not failed_chunks:
+            raise TranslationServiceError(CHUNK_RETRY_NOT_FAILED_MESSAGE, status_code=400)
+        if len(failed_chunks) > 1:
+            raise TranslationServiceError(CHUNK_RETRY_AMBIGUOUS_MESSAGE, status_code=409)
+
+        chunk = failed_chunks[0]
+        page = page_repository.get_page_by_id(chunk.page_id)
+        if page is None:
+            raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+        run_options = self._run_options_from_job(job, page_index=page.page_index)
+        self._validate_run_options(run_options, text=chunk.source_text)
+        prompt_version = self.prompt_loader.select_prompt_version(
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            prompt_version=job.prompt_version,
+        )
+        system_prompt = self.prompt_loader.load(
+            prompt_version,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+        )
+
+        active_glossary_terms = []
+        if run_options.use_glossary:
+            from app.db.repositories.glossary_repository import GlossaryRepository
+
+            active_glossary_terms = GlossaryRepository(self.db).list_active_terms(
+                source_lang=run_options.source_lang,
+                target_lang=run_options.target_lang,
+            )
+
+        chunk_repository.update_status(
+            job_id=job.id,
+            page_id=page.id,
+            chunk_index=chunk.chunk_index,
+            status="running",
+            increment_retry_count=True,
+            clear_error_message=True,
+        )
+
+        cache_hit = False
+        failed_messages: list[str] = []
+        selected_glossary_terms = select_glossary_terms_for_text(
+            chunk.source_text,
+            active_glossary_terms,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+        )
+        selected_glossary_hash = make_selected_glossary_hash(selected_glossary_terms)
+        cache_key = build_cache_key(
+            source_text=chunk.source_text,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            model_name=job.model_name,
+            prompt_version=prompt_version,
+            style=run_options.style,
+            honorific_policy=run_options.honorific_policy,
+            preserve_names=run_options.preserve_names,
+            selected_glossary_hash=selected_glossary_hash,
+        )
+        cached = cache_service.get_cached_translation(cache_key=cache_key)
+        if cached is not None:
+            cache_hit = True
+            chunk_repository.update_status(
+                job_id=job.id,
+                page_id=page.id,
+                chunk_index=chunk.chunk_index,
+                status="completed",
+                translated_text=cached.translated_text,
+                elapsed_ms=0,
+                clear_error_message=True,
+            )
+        else:
+            messages = self._build_messages(
+                run_options=run_options,
+                system_prompt=system_prompt,
+                source_text=chunk.source_text,
+                context_before=chunk.context_before or "",
+                context_after=chunk.context_after or "",
+                selected_glossary_terms=selected_glossary_terms,
+            )
+            try:
+                result = await self.ollama_client.chat(
+                    messages,
+                    options=run_options.options,
+                    think=run_options.think,
+                )
+                translated_text = self._extract_translation_text(result.content)
+                if not translated_text:
+                    raise OllamaClientError(
+                        EMPTY_MODEL_RESPONSE_MESSAGE,
+                        code="empty_response",
+                    )
+                chunk_repository.update_status(
+                    job_id=job.id,
+                    page_id=page.id,
+                    chunk_index=chunk.chunk_index,
+                    status="completed",
+                    translated_text=translated_text,
+                    raw_model_response=self._serialize_raw_response(result.raw_response),
+                    elapsed_ms=result.elapsed_ms,
+                    clear_error_message=True,
+                )
+                cache_service.save_translation(
+                    cache_key=cache_key,
+                    source_text=chunk.source_text,
+                    translated_text=translated_text,
+                    model_name=job.model_name,
+                    prompt_version=prompt_version,
+                    style=run_options.style,
+                    honorific_policy=run_options.honorific_policy,
+                    preserve_names=run_options.preserve_names,
+                    selected_glossary_hash=selected_glossary_hash,
+                )
+            except Exception as exc:  # noqa: BLE001
+                message = self._map_model_error(exc)
+                failed_messages.append(message)
+                chunk_repository.update_status(
+                    job_id=job.id,
+                    page_id=page.id,
+                    chunk_index=chunk.chunk_index,
+                    status="failed",
+                    error_message=message,
+                )
+
+        elapsed_ms = self._elapsed_ms(started_at)
+        updated_page = self._recalculate_page(
+            page,
+            page_repository=page_repository,
+            chunk_repository=chunk_repository,
+            elapsed_ms=elapsed_ms,
+        )
+        all_pages = page_repository.list_pages(job_id=job.id)
+        completed_count = sum(item.completed_chunks for item in all_pages)
+        failed_count = sum(item.failed_chunks for item in all_pages)
+        total_chunks = sum(item.total_chunks for item in all_pages)
+        job_translated_text = "\n\n".join(
+            item.translated_text
+            for item in all_pages
+            if item.translated_text is not None and item.status == "completed"
+        )
+        translation_repository.update_job(
+            job.id,
+            translated_text=job_translated_text,
+            status=self._job_status(
+                completed_count=completed_count,
+                failed_count=failed_count,
+                total_pages=len(all_pages),
+                completed_pages=sum(1 for item in all_pages if item.status == "completed"),
+            ),
+            total_chunks=total_chunks,
+            completed_chunks=completed_count,
+            failed_chunks=failed_count,
+            elapsed_ms=elapsed_ms,
+            error_message=failed_messages[0] if failed_messages else None,
+            clear_error_message=not failed_messages,
+        )
+        page_chunks = chunk_repository.list_chunks(job_id=job.id, page_id=updated_page.id)
+        return TranslationResponse(
+            job_id=job.id,
+            source_type="pasted_text" if job.source_site == "manual" else job.source_site,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            current_page_index=updated_page.page_index,
+            total_pages=len(all_pages),
+            has_next_page=updated_page.page_index < len(all_pages) - 1,
+            translated_text=updated_page.translated_text or "",
+            model=job.model_name,
+            prompt_version=prompt_version,
+            style=run_options.style,
+            elapsed_ms=elapsed_ms,
+            cache_hit=cache_hit,
+            chunks=self._chunk_responses_from_db(page_chunks, run_options=run_options),
+        )
 
     async def _translate_job(
         self,
@@ -235,7 +439,11 @@ class TranslationService:
         cache_hit = False
 
         for page in selected_pages:
-            if page.status == "completed" and page.translated_text is not None:
+            if (
+                not run_options.force
+                and page.status == "completed"
+                and page.translated_text is not None
+            ):
                 translated_pages[page.page_index] = page.translated_text
                 selected_chunk_responses.extend(
                     self._chunk_responses_from_db(
@@ -287,6 +495,7 @@ class TranslationService:
             failed_chunks=failed_count,
             elapsed_ms=elapsed_ms,
             error_message=failed_messages[0] if failed_messages else None,
+            clear_error_message=not failed_messages,
         )
         current_page_index = selected_pages[0].page_index if selected_pages else 0
 
@@ -476,6 +685,7 @@ class TranslationService:
             failed_chunks=failed_count,
             elapsed_ms=self._elapsed_ms(page_started_at),
             error_message=failed_messages[0] if failed_messages else None,
+            clear_error_message=not failed_messages,
         )
         return {
             "translated_text": translated_text,
@@ -518,6 +728,89 @@ class TranslationService:
             )
             for chunk in chunks
         ]
+
+    def _run_options_from_job(
+        self,
+        job: TranslationJob,
+        *,
+        page_index: int,
+    ) -> TranslationRunOptions:
+        return TranslationRunOptions(
+            source_lang=job.source_language,
+            target_lang=job.target_language,
+            style=job.style,
+            honorific_policy=job.honorific_policy,
+            preserve_names=bool(job.preserve_names),
+            use_glossary=True,
+            use_cache=True,
+            think=self._deserialize_ollama_think(job.ollama_think),
+            options=self._deserialize_ollama_options(job.ollama_options_json),
+            stream=False,
+            translate_scope="current_page",
+            page_index=page_index,
+            force=True,
+        )
+
+    def _recalculate_page(
+        self,
+        page: TranslationPage,
+        *,
+        page_repository: PageRepository,
+        chunk_repository: ChunkRepository,
+        elapsed_ms: int,
+    ) -> TranslationPage:
+        chunks = chunk_repository.list_chunks(job_id=page.job_id, page_id=page.id)
+        translated_chunks = [
+            (chunk.chunk_index, chunk.translated_text)
+            for chunk in chunks
+            if chunk.status == "completed" and chunk.translated_text is not None
+        ]
+        failed_messages = [
+            chunk.error_message
+            for chunk in chunks
+            if chunk.status == "failed" and chunk.error_message
+        ]
+        completed_count = len(translated_chunks)
+        failed_count = sum(1 for chunk in chunks if chunk.status == "failed")
+        updated = page_repository.update_page(
+            page.id,
+            translated_text=self._merge_translated_chunks(translated_chunks),
+            status=self._page_status(
+                completed_count=completed_count,
+                failed_count=failed_count,
+            ),
+            total_chunks=len(chunks),
+            completed_chunks=completed_count,
+            failed_chunks=failed_count,
+            elapsed_ms=elapsed_ms,
+            error_message=failed_messages[0] if failed_messages else None,
+            clear_error_message=not failed_messages,
+        )
+        if updated is None:
+            raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+        return updated
+
+    def _deserialize_ollama_think(self, value: str | None) -> str | bool:
+        if value is None:
+            return False
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return value
+        if isinstance(parsed, str | bool):
+            return parsed
+        return False
+
+    def _deserialize_ollama_options(self, value: str | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, dict):
+            return parsed
+        return None
 
     def _validate_request(self, request: TranslationRequest) -> None:
         run_options = TranslationRunOptions(

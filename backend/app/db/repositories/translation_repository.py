@@ -94,6 +94,7 @@ class TranslationRepository:
         failed_chunks: int | None = None,
         elapsed_ms: int | None = None,
         error_message: str | None = None,
+        clear_error_message: bool = False,
     ) -> TranslationJob | None:
         job = self.get_job(job_id)
         if job is None:
@@ -111,7 +112,9 @@ class TranslationRepository:
             job.failed_chunks = failed_chunks
         if elapsed_ms is not None:
             job.elapsed_ms = elapsed_ms
-        if error_message is not None:
+        if clear_error_message:
+            job.error_message = None
+        elif error_message is not None:
             job.error_message = error_message
 
         self.db.commit()
