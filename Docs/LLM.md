@@ -137,6 +137,10 @@ harness/prompts/translate_ja_ko_v1.md
 
 ---
 
+Literal Unicode escape output such as `\u4f5c\u54c1` is restored during
+translation post-processing before saving `translated_text` or returning API
+responses. `raw_model_response` keeps the original model output.
+
 ## 6. 프롬프트 버전 관리
 
 프롬프트 변경 시 다음을 수행한다.

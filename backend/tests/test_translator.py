@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import TranslationJob
+from app.db.repositories.cache_repository import CacheRepository
 from app.db.repositories.chunk_repository import ChunkRepository
 from app.db.repositories.glossary_repository import GlossaryRepository
 from app.db.repositories.translation_repository import TranslationRepository
@@ -18,8 +19,12 @@ from app.llm.translator import (
     TranslationServiceError,
 )
 from app.schemas.translation import TranslationRequest
+from app.services.cache import build_cache_key
+from app.services.glossary import make_selected_glossary_hash
 
 SOURCE_TEXT = "\u5f7c\u306f\u9759\u304b\u306b\u76ee\u3092\u9589\u3058\u305f\u3002"
+ESCAPED_TITLE = "\\u4f5c\\u54c1\\u30bf\\u30a4\\u30c8\\u30eb"
+RESTORED_TITLE = "\u4f5c\u54c1\u30bf\u30a4\u30c8\u30eb"
 
 
 def test_translate_short_text_saves_job_and_chunk(db_session: Session) -> None:
@@ -45,6 +50,92 @@ def test_translate_short_text_saves_job_and_chunk(db_session: Session) -> None:
         assert job.completed_chunks == 1
         assert chunks[0].status == "completed"
         assert chunks[0].translated_text == "translated"
+
+    asyncio.run(run_test())
+
+
+def test_translate_restores_literal_unicode_escapes_before_saving(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        service = TranslationService(
+            db_session,
+            ollama_client=FakeOllamaClient([ESCAPED_TITLE]),
+        )
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        job = db_session.get(TranslationJob, response.job_id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=response.job_id)
+
+        assert response.translated_text == RESTORED_TITLE
+        assert job is not None
+        assert job.translated_text == RESTORED_TITLE
+        assert chunks[0].translated_text == RESTORED_TITLE
+        assert chunks[0].raw_model_response is not None
+        assert ESCAPED_TITLE.replace("\\", "\\\\") in chunks[0].raw_model_response
+
+    asyncio.run(run_test())
+
+
+def test_translate_restores_prefixed_literal_unicode_escapes(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        service = TranslationService(
+            db_session,
+            ollama_client=FakeOllamaClient([f"Translation: {ESCAPED_TITLE}"]),
+        )
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        job = db_session.get(TranslationJob, response.job_id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=response.job_id)
+
+        assert response.translated_text == RESTORED_TITLE
+        assert job is not None
+        assert job.translated_text == RESTORED_TITLE
+        assert chunks[0].translated_text == RESTORED_TITLE
+
+    asyncio.run(run_test())
+
+
+def test_translate_cache_hit_restores_literal_unicode_escapes(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        selected_glossary_hash = make_selected_glossary_hash([])
+        cache_key = build_cache_key(
+            source_text=SOURCE_TEXT,
+            source_lang="ja",
+            target_lang="ko",
+            model_name="gemma4:26b-a4b-it-q4_K_M",
+            prompt_version="translate_ja_ko_v1",
+            style="webnovel",
+            honorific_policy="preserve",
+            preserve_names=True,
+            selected_glossary_hash=selected_glossary_hash,
+        )
+        CacheRepository(db_session).create_cache_entry(
+            cache_key=cache_key,
+            source_text=SOURCE_TEXT,
+            translated_text=ESCAPED_TITLE,
+            selected_glossary_hash=selected_glossary_hash,
+        )
+        fake_client = FakeOllamaClient(["unused"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        job = db_session.get(TranslationJob, response.job_id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=response.job_id)
+
+        assert response.cache_hit is True
+        assert response.translated_text == RESTORED_TITLE
+        assert len(fake_client.calls) == 0
+        assert job is not None
+        assert job.translated_text == RESTORED_TITLE
+        assert chunks[0].translated_text == RESTORED_TITLE
 
     asyncio.run(run_test())
 

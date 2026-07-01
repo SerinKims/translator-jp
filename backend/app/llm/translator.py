@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, replace
 from typing import Any
@@ -48,6 +49,7 @@ from app.services.language_detector import (
 
 MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 PROMPT_VERSION = "translate_ja_ko_v1"
+LITERAL_UNICODE_ESCAPE_RE = re.compile(r"(?:\\u[0-9a-fA-F]{4})+")
 CHUNK_NOT_FOUND_MESSAGE = "Translation chunk not found."
 CHUNK_RETRY_NOT_FAILED_MESSAGE = "Only failed chunks can be retried."
 CHUNK_RETRY_AMBIGUOUS_MESSAGE = (
@@ -310,12 +312,13 @@ class TranslationService:
         cached = cache_service.get_cached_translation(cache_key=cache_key)
         if cached is not None:
             cache_hit = True
+            translated_text = self._restore_literal_unicode_escapes(cached.translated_text)
             chunk_repository.update_status(
                 job_id=job.id,
                 page_id=page.id,
                 chunk_index=chunk.chunk_index,
                 status="completed",
-                translated_text=cached.translated_text,
+                translated_text=translated_text,
                 elapsed_ms=0,
                 clear_error_message=True,
             )
@@ -618,7 +621,7 @@ class TranslationService:
                 cached = cache_service.get_cached_translation(cache_key=cache_key)
                 if cached is not None:
                     cache_hit = True
-                    translated_text = cached.translated_text
+                    translated_text = self._restore_literal_unicode_escapes(cached.translated_text)
                     chunk_repository.update_status(
                         job_id=job.id,
                         page_id=page.id,
@@ -956,8 +959,24 @@ class TranslationService:
         text = raw_text.strip()
         for prefix in ("번역문:", "번역:", "Translation:", "Translated text:"):
             if text.startswith(prefix):
-                return text[len(prefix) :].strip()
-        return text
+                return self._restore_literal_unicode_escapes(text[len(prefix) :].strip())
+        return self._restore_literal_unicode_escapes(text)
+
+    def _restore_literal_unicode_escapes(self, text: str) -> str:
+        if "\\u" not in text:
+            return text
+
+        def restore_match(match: re.Match[str]) -> str:
+            escaped = match.group(0)
+            try:
+                decoded = json.loads(f'"{escaped}"')
+            except json.JSONDecodeError:
+                return escaped
+            if not isinstance(decoded, str):
+                return escaped
+            return decoded
+
+        return LITERAL_UNICODE_ESCAPE_RE.sub(restore_match, text)
 
     def _merge_translated_chunks(self, translated_chunks: list[tuple[int, str]]) -> str:
         return "\n\n".join(text for _, text in sorted(translated_chunks))
