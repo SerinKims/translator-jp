@@ -10,8 +10,14 @@ from app.db.models import TranslationCache
 from app.db.repositories.cache_repository import CacheRepository
 from app.services.glossary import (
     SelectedGlossaryTerm as SelectedGlossaryTerm,
+)
+from app.services.glossary import (
     make_selected_glossary_hash as make_selected_glossary_hash,
+)
+from app.services.glossary import (
     make_selected_glossary_hash_for_text as make_selected_glossary_hash_for_text,
+)
+from app.services.glossary import (
     select_glossary_terms_for_text as select_glossary_terms_for_text,
 )
 
@@ -92,6 +98,8 @@ class TranslationCacheService:
         cache_key: str,
         source_text: str,
         translated_text: str,
+        source_lang: str,
+        target_lang: str,
         model_name: str,
         prompt_version: str,
         style: str,
@@ -103,6 +111,8 @@ class TranslationCacheService:
             cache_key=cache_key,
             source_text=source_text,
             translated_text=translated_text,
+            source_lang=source_lang,
+            target_lang=target_lang,
             model_name=model_name,
             prompt_version=prompt_version,
             style=style,

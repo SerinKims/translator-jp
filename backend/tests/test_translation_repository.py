@@ -59,3 +59,20 @@ def test_create_translation_job_with_ollama_options(db_session: Session) -> None
 
     assert job.ollama_think == '"low"'
     assert job.ollama_options_json == '{"max_tokens": 2048, "temperature": 0.2}'
+
+
+def test_create_translation_job_with_detected_language_metadata(db_session: Session) -> None:
+    repository = TranslationRepository(db_session)
+
+    job = repository.create_job(
+        original_text="He closed his eyes.",
+        source_language="en",
+        target_language="ko",
+        detected_lang="en",
+        language_confidence=0.95,
+    )
+
+    assert job.source_language == "en"
+    assert job.target_language == "ko"
+    assert job.detected_lang == "en"
+    assert job.language_confidence == 0.95

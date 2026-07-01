@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
 
     source_language TEXT NOT NULL DEFAULT 'ja',
     target_language TEXT NOT NULL DEFAULT 'ko',
+    detected_lang TEXT,
+    language_confidence REAL,
 
     source_site TEXT NOT NULL DEFAULT 'manual'
         CHECK (source_site IN ('manual', 'pixiv')),
@@ -84,6 +86,8 @@ CREATE TABLE IF NOT EXISTS translation_chunks (
     job_id INTEGER NOT NULL,
     page_id INTEGER NOT NULL,
     chunk_index INTEGER NOT NULL,
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
 
     source_text TEXT NOT NULL,
     translated_text TEXT,
@@ -175,6 +179,8 @@ CREATE TABLE IF NOT EXISTS translation_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
     source_hash TEXT NOT NULL UNIQUE,
+    source_lang TEXT NOT NULL DEFAULT 'ja',
+    target_lang TEXT NOT NULL DEFAULT 'ko',
 
     source_text TEXT NOT NULL,
     translated_text TEXT NOT NULL,
@@ -329,6 +335,9 @@ ON translation_chunks(page_id);
 CREATE INDEX IF NOT EXISTS idx_translation_chunks_status
 ON translation_chunks(status);
 
+CREATE INDEX IF NOT EXISTS idx_translation_chunks_lang
+ON translation_chunks(source_lang, target_lang);
+
 CREATE INDEX IF NOT EXISTS idx_glossary_terms_source_term
 ON glossary_terms(source_term);
 
@@ -343,6 +352,9 @@ ON glossary_candidates(status);
 
 CREATE INDEX IF NOT EXISTS idx_translation_cache_source_hash
 ON translation_cache(source_hash);
+
+CREATE INDEX IF NOT EXISTS idx_translation_cache_lang
+ON translation_cache(source_lang, target_lang);
 
 CREATE INDEX IF NOT EXISTS idx_translation_feedback_type
 ON translation_feedback(feedback_type);

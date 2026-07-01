@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -39,6 +39,12 @@ from app.services.glossary import (
     make_selected_glossary_hash,
     select_glossary_terms_for_text,
 )
+from app.services.language_detector import (
+    SUPPORTED_SOURCE_LANGS,
+    TRANSLATABLE_SOURCE_LANGS,
+    UNKNOWN_LANG,
+    detect_language,
+)
 
 MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 PROMPT_VERSION = "translate_ja_ko_v1"
@@ -63,6 +69,12 @@ TRANSLATION_TIMEOUT_MESSAGE = (
 EMPTY_MODEL_RESPONSE_MESSAGE = "모델이 빈 응답을 반환했습니다. 다시 시도해주세요."
 STREAM_NOT_SUPPORTED_MESSAGE = "스트리밍 번역은 아직 지원하지 않습니다."
 JOB_NOT_FOUND_MESSAGE = "번역 작업을 찾을 수 없습니다."
+
+UNSUPPORTED_SOURCE_LANGUAGE_MESSAGE = (
+    "지원하지 않는 원문 언어입니다. 일본어, 중국어, 영어 중 하나를 선택해주세요."
+)
+ONLY_KO_TARGET_MESSAGE = "현재 목표 언어는 한국어만 지원합니다."
+UNKNOWN_SOURCE_LANGUAGE_MESSAGE = "원문 언어를 감지하지 못했습니다. 언어를 직접 선택해주세요."
 
 
 @dataclass(frozen=True)
@@ -129,17 +141,22 @@ class TranslationService:
             translate_scope=request.translate_scope,
             page_index=request.page_index,
         )
-        self._validate_run_options(run_options, text=request.text)
+        run_options, detected_lang, language_confidence = self._resolve_run_options(
+            run_options,
+            text=request.text,
+        )
 
         prompt_version = self.prompt_loader.select_prompt_version(
-            source_lang=request.source_lang,
-            target_lang=request.target_lang,
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
             prompt_version=self.prompt_version,
         )
         job = TranslationRepository(self.db).create_job(
             original_text=request.text,
-            source_language=request.source_lang,
-            target_language=request.target_lang,
+            source_language=run_options.source_lang,
+            target_language=run_options.target_lang,
+            detected_lang=detected_lang,
+            language_confidence=language_confidence,
             source_site="manual",
             source_url=None,
             source_title=None,
@@ -150,9 +167,9 @@ class TranslationService:
             prompt_version=prompt_version,
             ollama_think=request.think,
             ollama_options=request.options,
-            style=request.style,
-            honorific_policy=request.honorific_policy,
-            preserve_names=request.preserve_names,
+            style=run_options.style,
+            honorific_policy=run_options.honorific_policy,
+            preserve_names=run_options.preserve_names,
             status="running",
         )
 
@@ -195,7 +212,17 @@ class TranslationService:
             page_index=page_index,
             force=force,
         )
-        self._validate_run_options(run_options, text=job.original_text)
+        run_options, detected_lang, language_confidence = self._resolve_run_options(
+            run_options,
+            text=job.original_text,
+        )
+        TranslationRepository(self.db).update_job(
+            job.id,
+            source_language=run_options.source_lang,
+            target_language=run_options.target_lang,
+            detected_lang=detected_lang,
+            language_confidence=language_confidence,
+        )
 
         return await self._translate_job(job=job, run_options=run_options)
 
@@ -327,6 +354,8 @@ class TranslationService:
                     cache_key=cache_key,
                     source_text=chunk.source_text,
                     translated_text=translated_text,
+                    source_lang=run_options.source_lang,
+                    target_lang=run_options.target_lang,
                     model_name=job.model_name,
                     prompt_version=prompt_version,
                     style=run_options.style,
@@ -425,7 +454,13 @@ class TranslationService:
                 source_lang=run_options.source_lang,
                 target_lang=run_options.target_lang,
             )
-        translation_repository.update_job(job.id, status="running")
+        translation_repository.update_job(
+            job.id,
+            status="running",
+            source_language=run_options.source_lang,
+            target_language=run_options.target_lang,
+            prompt_version=prompt_version,
+        )
 
         pages = page_repository.ensure_pages_for_job(job)
         selected_pages = self._select_pages(
@@ -547,6 +582,8 @@ class TranslationService:
                 job_id=job.id,
                 page_id=page.id,
                 chunk_index=chunk["index"],
+                source_lang=run_options.source_lang,
+                target_lang=run_options.target_lang,
                 source_text=chunk["source_text"],
                 context_before=chunk["context_before"],
                 context_after=chunk["context_after"],
@@ -635,6 +672,8 @@ class TranslationService:
                         cache_key=cache_key,
                         source_text=chunk["source_text"],
                         translated_text=translated_text,
+                        source_lang=run_options.source_lang,
+                        target_lang=run_options.target_lang,
                         model_name=self.model_name,
                         prompt_version=prompt_version,
                         style=run_options.style,
@@ -722,8 +761,8 @@ class TranslationService:
         return [
             TranslationChunkResponse(
                 index=chunk.chunk_index,
-                source_lang=run_options.source_lang,
-                target_lang=run_options.target_lang,
+                source_lang=getattr(chunk, "source_lang", run_options.source_lang),
+                target_lang=getattr(chunk, "target_lang", run_options.target_lang),
                 status=chunk.status,
             )
             for chunk in chunks
@@ -827,7 +866,36 @@ class TranslationService:
             translate_scope=request.translate_scope,
             page_index=request.page_index,
         )
-        self._validate_run_options(run_options, text=request.text)
+        self._resolve_run_options(run_options, text=request.text)
+
+    def _resolve_run_options(
+        self,
+        run_options: TranslationRunOptions,
+        *,
+        text: str,
+    ) -> tuple[TranslationRunOptions, str, float]:
+        self._validate_run_options(run_options, text=text)
+
+        source_lang = run_options.source_lang
+        if source_lang not in SUPPORTED_SOURCE_LANGS or source_lang == "ko":
+            raise TranslationServiceError(UNSUPPORTED_SOURCE_LANGUAGE_MESSAGE, status_code=400)
+
+        if source_lang == "auto":
+            detection = detect_language(text)
+            if detection.language == UNKNOWN_LANG:
+                raise TranslationServiceError(UNKNOWN_SOURCE_LANGUAGE_MESSAGE, status_code=400)
+            if detection.language not in TRANSLATABLE_SOURCE_LANGS:
+                raise TranslationServiceError(UNSUPPORTED_SOURCE_LANGUAGE_MESSAGE, status_code=400)
+            return (
+                replace(run_options, source_lang=detection.language),
+                detection.language,
+                detection.confidence,
+            )
+
+        if source_lang not in TRANSLATABLE_SOURCE_LANGS:
+            raise TranslationServiceError(UNSUPPORTED_SOURCE_LANGUAGE_MESSAGE, status_code=400)
+
+        return replace(run_options, source_lang=source_lang), source_lang, 1.0
 
     def _validate_run_options(self, run_options: TranslationRunOptions, *, text: str) -> None:
         if not text.strip():

@@ -2305,3 +2305,32 @@ source_work_id 저장
 source_fetched_at 저장
 ```
 
+## 2026-07-01 Multilingual Translation Columns
+
+Existing `translation_jobs.source_language` and
+`translation_jobs.target_language` remain the physical DB columns for API
+`source_lang` and `target_lang` compatibility.
+
+Additional columns:
+
+```text
+translation_jobs.detected_lang
+translation_jobs.language_confidence
+translation_chunks.source_lang
+translation_chunks.target_lang
+translation_cache.source_lang
+translation_cache.target_lang
+```
+
+Persistence policy:
+
+- For explicit source language requests, `detected_lang` stores the explicit
+  source language and `language_confidence` stores `1.0`.
+- For `source_lang=auto`, `source_language` stores the resolved language,
+  `detected_lang` stores the detected language, and `language_confidence` stores
+  the heuristic confidence.
+- `translation_chunks` stores the actual resolved source/target language pair.
+- `translation_cache` stores the actual resolved source/target language pair,
+  and the cache key includes both language codes.
+- `glossary_terms.source_lang` and `glossary_terms.target_lang` continue to be
+  used to filter glossary terms per request.

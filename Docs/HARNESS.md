@@ -135,3 +135,31 @@ python harness/run_eval.py \
   --model gemma4:26b-a4b-it-q4_K_M \
   --output harness/reports/latest.json
 ```
+
+## 2026-07-01 Multilingual Regression Coverage
+
+Multilingual translation changes must include focused tests for:
+
+```text
+Japanese auto detection
+Simplified Chinese auto detection
+Traditional Chinese auto detection
+English auto detection
+Language-specific prompt selection
+Language-specific glossary application
+Cache miss when source_lang or target_lang differs
+target_lang values other than ko rejected
+Existing Japanese translation behavior preserved
+```
+
+Primary verification command:
+
+```bash
+pytest backend/tests/test_language_detector.py backend/tests/test_translator_multilang.py backend/tests/test_glossary_multilang.py backend/tests/test_cache_multilang.py -q
+```
+
+Full backend regression:
+
+```bash
+pytest backend/tests -q
+```

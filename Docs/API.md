@@ -444,3 +444,41 @@ Request:
   "comment": "王都는 왕도로 번역해야 함"
 }
 ```
+
+## 2026-07-01 Multilingual Translation Contract
+
+`POST /api/translate` and `POST /api/fetch/pixiv/translate` support these
+source language codes:
+
+```text
+auto
+ja
+zh-CN
+zh-TW
+en
+```
+
+`target_lang` supports only `ko` in the MVP. Existing Japanese requests keep the
+same default behavior with `source_lang=ja` and `target_lang=ko`.
+
+When `source_lang=auto`, the backend detects the source language before prompt,
+glossary, cache, chunk, and job persistence. Responses return the resolved
+`source_lang`.
+
+User-facing validation messages:
+
+```text
+지원하지 않는 원문 언어입니다. 일본어, 중국어, 영어 중 하나를 선택해주세요.
+현재 목표 언어는 한국어만 지원합니다.
+지원하지 않는 번역 언어 조합입니다.
+원문 언어를 감지하지 못했습니다. 언어를 직접 선택해주세요.
+```
+
+Prompt versions by language pair:
+
+```text
+ja -> ko: translate_ja_ko_v1
+zh-CN -> ko: translate_zh_ko_v1
+zh-TW -> ko: translate_zh_ko_v1
+en -> ko: translate_en_ko_v1
+```

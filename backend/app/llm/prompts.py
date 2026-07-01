@@ -5,7 +5,6 @@ from pathlib import Path
 
 from app.core.config import PROJECT_ROOT
 
-
 UNSUPPORTED_LANGUAGE_PAIR_MESSAGE = "지원하지 않는 번역 언어 조합입니다."
 
 DEFAULT_SOURCE_LANG = "ja"
@@ -40,14 +39,37 @@ _PROMPT_DEFINITIONS: dict[tuple[str, str, str], PromptDefinition] = {
         target_lang="ko",
         filename="translate_ja_ko_v1.md",
     ),
+    ("zh-CN", "ko", "translate_zh_ko_v1"): PromptDefinition(
+        version="translate_zh_ko_v1",
+        source_lang="zh-CN",
+        target_lang="ko",
+        filename="translate_zh_ko_v1.md",
+    ),
+    ("zh-TW", "ko", "translate_zh_ko_v1"): PromptDefinition(
+        version="translate_zh_ko_v1",
+        source_lang="zh-TW",
+        target_lang="ko",
+        filename="translate_zh_ko_v1.md",
+    ),
+    ("en", "ko", "translate_en_ko_v1"): PromptDefinition(
+        version="translate_en_ko_v1",
+        source_lang="en",
+        target_lang="ko",
+        filename="translate_en_ko_v1.md",
+    ),
 }
 
 _PROMPT_ALIASES: dict[str, str] = {
     "translate_ja_ko_v1": "translate_ja_ko_v1",
+    "translate_zh_ko_v1": "translate_zh_ko_v1",
+    "translate_en_ko_v1": "translate_en_ko_v1",
 }
 
 _DEFAULT_PROMPTS_BY_LANGUAGE_PAIR: dict[tuple[str, str], str] = {
     ("ja", "ko"): DEFAULT_PROMPT_VERSION,
+    ("zh-CN", "ko"): "translate_zh_ko_v1",
+    ("zh-TW", "ko"): "translate_zh_ko_v1",
+    ("en", "ko"): "translate_en_ko_v1",
 }
 
 
@@ -66,8 +88,15 @@ class PromptLoader:
         if language_pair not in _DEFAULT_PROMPTS_BY_LANGUAGE_PAIR:
             raise UnsupportedLanguagePairError(UNSUPPORTED_LANGUAGE_PAIR_MESSAGE)
 
-        selected_version = prompt_version or _DEFAULT_PROMPTS_BY_LANGUAGE_PAIR[language_pair]
-        return _PROMPT_ALIASES.get(selected_version, selected_version)
+        default_version = _DEFAULT_PROMPTS_BY_LANGUAGE_PAIR[language_pair]
+        selected_version = _PROMPT_ALIASES.get(
+            prompt_version or default_version,
+            prompt_version or default_version,
+        )
+        if (source_lang, target_lang, selected_version) not in _PROMPT_DEFINITIONS:
+            if prompt_version == DEFAULT_PROMPT_VERSION:
+                return default_version
+        return selected_version
 
     def load(
         self,

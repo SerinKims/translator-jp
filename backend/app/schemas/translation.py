@@ -120,6 +120,8 @@ class TranslationChunkHistory(BaseModel):
     page_id: int
     page_index: int | None
     chunk_index: int
+    source_lang: str
+    target_lang: str
     source_text: str
     translated_text: str | None
     context_before: str | None

@@ -52,6 +52,8 @@ class TranslationJob(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_language: Mapped[str] = mapped_column(String, nullable=False, default="ja")
     target_language: Mapped[str] = mapped_column(String, nullable=False, default="ko")
+    detected_lang: Mapped[str | None] = mapped_column(String)
+    language_confidence: Mapped[float | None] = mapped_column(Float)
 
     source_site: Mapped[str] = mapped_column(String, nullable=False, default="manual")
     source_url: Mapped[str | None] = mapped_column(Text)
@@ -149,6 +151,8 @@ class TranslationChunk(TimestampMixin, Base):
         nullable=False,
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_lang: Mapped[str] = mapped_column(String, nullable=False, default="ja")
+    target_lang: Mapped[str] = mapped_column(String, nullable=False, default="ko")
 
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     translated_text: Mapped[str | None] = mapped_column(Text)
@@ -236,6 +240,8 @@ class TranslationCache(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    source_lang: Mapped[str] = mapped_column(String, nullable=False, default="ja")
+    target_lang: Mapped[str] = mapped_column(String, nullable=False, default="ko")
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     translated_text: Mapped[str] = mapped_column(Text, nullable=False)
     model_name: Mapped[str] = mapped_column(String, nullable=False)
