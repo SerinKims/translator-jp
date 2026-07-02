@@ -6,20 +6,33 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
     "format": "prettier --write ."
   },
   "dependencies": {
     "@tanstack/react-query": "latest",
+    "clsx": "latest",
+    "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "tailwind-merge": "latest"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@testing-library/user-event": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "latest",
+    "postcss": "^8.4.49",
     "prettier": "latest",
-    "typescript": "latest"
+    "tailwindcss": "^3.4.17",
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }
