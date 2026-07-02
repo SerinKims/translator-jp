@@ -1,0 +1,10 @@
+{"id":"ja_001","source_lang":"ja","target_lang":"ko","source":"彼は静かに笑った。","reference":"그는 조용히 웃었다.","tags":["narration","short"]}
+{"id":"ja_002","source_lang":"ja","target_lang":"ko","source":"「あなたは誰ですか？」","reference":"“당신은 누구세요?”","tags":["dialogue","honorific"]}
+{"id":"ja_003","source_lang":"ja","target_lang":"ko","source":"魔王は王都の空を見上げた。","reference":"마왕은 왕도의 하늘을 올려다보았다.","tags":["glossary","fantasy"],"glossary":[{"source_term":"魔王","target_term":"마왕"},{"source_term":"王都","target_term":"왕도"}]}
+{"id":"ja_004","source_lang":"ja","target_lang":"ko","source":"雨が窓を叩いていた。\n\n少女は返事を待った。","reference":"비가 창문을 두드리고 있었다.\n\n소녀는 대답을 기다렸다.","tags":["paragraphs"]}
+{"id":"ja_005","source_lang":"ja","target_lang":"ko","source":"Aliciaは古い鍵を握りしめた。","reference":"Alicia는 낡은 열쇠를 꼭 쥐었다.","tags":["proper_noun"],"proper_nouns":["Alicia"]}
+{"id":"ja_006","source_lang":"ja","target_lang":"ko","source":"「姫様、こちらへ」騎士は低く告げた。","reference":"“공주님, 이쪽으로.” 기사는 낮게 말했다.","tags":["dialogue","glossary"],"glossary":[{"source_term":"姫様","target_term":"공주님"}]}
+{"id":"ja_007","source_lang":"ja","target_lang":"ko","source":"勇者は剣を抜き、魔王の前に立った。","reference":"용사는 검을 뽑고 마왕 앞에 섰다.","tags":["glossary","action"],"glossary":[{"source_term":"勇者","target_term":"용사"},{"source_term":"魔王","target_term":"마왕"}]}
+{"id":"ja_008","source_lang":"ja","target_lang":"ko","source":"夜明け前、街の灯は一つずつ消えていった。","reference":"동이 트기 전, 거리의 불빛은 하나씩 꺼져 갔다.","tags":["narration"]}
+{"id":"ja_009","source_lang":"ja","target_lang":"ko","source":"「まだ終わっていない」彼女は震える声で言った。","reference":"“아직 끝나지 않았어.” 그녀는 떨리는 목소리로 말했다.","tags":["dialogue","emotion"]}
+{"id":"ja_010","source_lang":"ja","target_lang":"ko","source":"Luciaは王都の門で姫様を待っていた。","reference":"Lucia는 왕도의 문에서 공주님을 기다리고 있었다.","tags":["proper_noun","glossary"],"proper_nouns":["Lucia"],"glossary":[{"source_term":"王都","target_term":"왕도"},{"source_term":"姫様","target_term":"공주님"}]}

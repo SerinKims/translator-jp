@@ -1,0 +1,10 @@
+{"id":"zh_001","source_lang":"zh-CN","target_lang":"ko","source":"他安静地笑了。","reference":"그는 조용히 웃었다.","tags":["narration","short"]}
+{"id":"zh_002","source_lang":"zh-CN","target_lang":"ko","source":"“你是谁？”她低声问。","reference":"“당신은 누구죠?” 그녀가 낮은 목소리로 물었다.","tags":["dialogue"]}
+{"id":"zh_003","source_lang":"zh-CN","target_lang":"ko","source":"魔王抬头望向王都的天空。","reference":"마왕은 왕도의 하늘을 올려다보았다.","tags":["glossary","fantasy"],"glossary":[{"source_term":"魔王","target_term":"마왕"},{"source_term":"王都","target_term":"왕도"}]}
+{"id":"zh_004","source_lang":"zh-CN","target_lang":"ko","source":"雨敲打着窗户。\n\n少女等待着回答。","reference":"비가 창문을 두드리고 있었다.\n\n소녀는 대답을 기다렸다.","tags":["paragraphs"]}
+{"id":"zh_005","source_lang":"zh-CN","target_lang":"ko","source":"Luo Chen握紧了旧钥匙。","reference":"Luo Chen은 낡은 열쇠를 꼭 쥐었다.","tags":["proper_noun"],"proper_nouns":["Luo Chen"]}
+{"id":"zh_006","source_lang":"zh-CN","target_lang":"ko","source":"“公主殿下，请往这边走。”骑士低声说道。","reference":"“공주님, 이쪽으로 오십시오.” 기사가 낮게 말했다.","tags":["dialogue","glossary"],"glossary":[{"source_term":"公主殿下","target_term":"공주님"}]}
+{"id":"zh_007","source_lang":"zh-CN","target_lang":"ko","source":"勇者拔出剑，站在魔王面前。","reference":"용사는 검을 뽑고 마왕 앞에 섰다.","tags":["glossary","action"],"glossary":[{"source_term":"勇者","target_term":"용사"},{"source_term":"魔王","target_term":"마왕"}]}
+{"id":"zh_008","source_lang":"zh-CN","target_lang":"ko","source":"黎明之前，街上的灯一盏盏熄灭了。","reference":"동이 트기 전, 거리의 불빛은 하나씩 꺼져 갔다.","tags":["narration"]}
+{"id":"zh_009","source_lang":"zh-CN","target_lang":"ko","source":"“还没有结束。”她用颤抖的声音说道。","reference":"“아직 끝나지 않았어.” 그녀는 떨리는 목소리로 말했다.","tags":["dialogue","emotion"]}
+{"id":"zh_010","source_lang":"zh-CN","target_lang":"ko","source":"Mira在王都的城门前等待公主殿下。","reference":"Mira는 왕도의 성문 앞에서 공주님을 기다리고 있었다.","tags":["proper_noun","glossary"],"proper_nouns":["Mira"],"glossary":[{"source_term":"王都","target_term":"왕도"},{"source_term":"公主殿下","target_term":"공주님"}]}
