@@ -1,11 +1,19 @@
+import sys
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import Base
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_DIR = PROJECT_ROOT / "backend"
+for path in (PROJECT_ROOT, BACKEND_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from app.db.models import Base  # noqa: E402
 
 
 @pytest.fixture()
