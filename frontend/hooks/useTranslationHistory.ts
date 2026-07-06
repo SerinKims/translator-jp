@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { clearHistory, deleteHistory, listHistory } from "@/lib/api/historyApi";
+import { clearHistory, deleteHistory, getHistoryDetail, listHistory } from "@/lib/api/historyApi";
 
 export function useTranslationHistory() {
   const queryClient = useQueryClient();
@@ -15,7 +15,11 @@ export function useTranslationHistory() {
 
   return {
     histories: query.data ?? [],
+    error: query.error,
     isLoading: query.isLoading,
+    openHistory: useMutation({
+      mutationFn: getHistoryDetail,
+    }),
     deleteHistory: useMutation({
       mutationFn: deleteHistory,
       onSuccess: invalidate,

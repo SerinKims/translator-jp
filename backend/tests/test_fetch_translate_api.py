@@ -21,7 +21,6 @@ from app.schemas.fetch import PixivTranslateResponse
 from app.schemas.translation import TranslationChunkResponse
 from app.services.fetch_service import FetchService
 
-
 PIXIV_URL = "https://www.pixiv.net/novel/show.php?id=12345678"
 TITLE = "\u4f5c\u54c1\u30bf\u30a4\u30c8\u30eb"
 AUTHOR = "\u4f5c\u8005\u540d"
@@ -134,6 +133,8 @@ def test_fetch_translate_route_passes_request_to_fetch_service(db_session: Sessi
                 "target_lang": "ko",
                 "translate_scope": "current_page",
                 "page_index": 1,
+                "model_name": "custom-model:latest",
+                "prompt_version": "translate_ja_ko_v1",
                 "style": "webnovel",
                 "honorific_policy": "preserve",
                 "preserve_names": True,
@@ -154,6 +155,8 @@ def test_fetch_translate_route_passes_request_to_fetch_service(db_session: Sessi
             "target_lang": "ko",
             "translate_scope": "current_page",
             "page_index": 1,
+            "model_name": "custom-model:latest",
+            "prompt_version": "translate_ja_ko_v1",
             "style": "webnovel",
             "honorific_policy": "preserve",
             "preserve_names": True,

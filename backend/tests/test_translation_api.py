@@ -18,7 +18,6 @@ from app.llm.translator import (
 )
 from app.main import app
 
-
 SOURCE_TEXT = "\u5f7c\u306f\u9759\u304b\u306b\u76ee\u3092\u9589\u3058\u305f\u3002"
 
 
@@ -111,6 +110,50 @@ def test_translate_api_use_cache_false_bypasses_existing_cache(db_session: Sessi
     assert second.json()["cache_hit"] is False
     assert second.json()["translated_text"] == "fresh translation"
     assert len(fake_client.calls) == 2
+
+
+def test_translate_api_persists_request_model_and_prompt_settings(
+    db_session: Session,
+) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=FakeOllamaClient(["translated"]),
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/translate",
+            json={
+                "text": SOURCE_TEXT,
+                "model_name": "custom-model:latest",
+                "prompt_version": "translate_ja_ko_v1",
+                "style": "lightnovel",
+                "honorific_policy": "naturalize",
+                "preserve_names": False,
+                "think": "low",
+                "options": {"temperature": 0.7, "num_ctx": 4096},
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model"] == "custom-model:latest"
+    assert payload["prompt_version"] == "translate_ja_ko_v1"
+    assert payload["style"] == "lightnovel"
+
+    saved = db_session.get(TranslationJob, payload["job_id"])
+    assert saved is not None
+    assert saved.model_name == "custom-model:latest"
+    assert saved.prompt_version == "translate_ja_ko_v1"
+    assert saved.style == "lightnovel"
+    assert saved.honorific_policy == "naturalize"
+    assert saved.preserve_names == 0
+    assert saved.ollama_think == '"low"'
+    assert saved.ollama_options_json == '{"num_ctx": 4096, "temperature": 0.7}'
 
 
 def test_translate_api_rejects_non_ko_target(db_session: Session) -> None:

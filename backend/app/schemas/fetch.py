@@ -8,6 +8,11 @@ from app.schemas.translation import OllamaRequestOptions, TranslationChunkRespon
 class PixivFetchRequest(OllamaRequestOptions):
     url: str
     translate_after_fetch: bool = False
+    source_lang: str = "ja"
+    target_lang: str = "ko"
+    style: str = "webnovel"
+    honorific_policy: str = "preserve"
+    preserve_names: bool = True
 
 
 class PixivTranslateRequest(OllamaRequestOptions):

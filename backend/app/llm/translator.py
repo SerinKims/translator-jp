@@ -81,6 +81,8 @@ UNKNOWN_SOURCE_LANGUAGE_MESSAGE = "원문 언어를 감지하지 못했습니다
 
 @dataclass(frozen=True)
 class TranslationRunOptions:
+    model_name: str
+    prompt_version: str
     source_lang: str
     target_lang: str
     style: str
@@ -130,6 +132,8 @@ class TranslationService:
 
     async def translate_text(self, request: TranslationRequest) -> TranslationResponse:
         run_options = TranslationRunOptions(
+            model_name=request.model_name or self.model_name,
+            prompt_version=request.prompt_version or self.prompt_version,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             style=request.style,
@@ -151,8 +155,9 @@ class TranslationService:
         prompt_version = self.prompt_loader.select_prompt_version(
             source_lang=run_options.source_lang,
             target_lang=run_options.target_lang,
-            prompt_version=self.prompt_version,
+            prompt_version=run_options.prompt_version,
         )
+        run_options = replace(run_options, prompt_version=prompt_version)
         job = TranslationRepository(self.db).create_job(
             original_text=request.text,
             source_language=run_options.source_lang,
@@ -165,7 +170,7 @@ class TranslationService:
             source_author=None,
             source_work_id=None,
             source_fetched_at=None,
-            model_name=self.model_name,
+            model_name=run_options.model_name,
             prompt_version=prompt_version,
             ollama_think=request.think,
             ollama_options=request.options,
@@ -194,12 +199,16 @@ class TranslationService:
         translate_scope: str = "first_page",
         page_index: int = 0,
         force: bool = False,
+        model_name: str | None = None,
+        prompt_version: str | None = None,
     ) -> TranslationResponse:
         job = TranslationRepository(self.db).get_job(job_id)
         if job is None:
             raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
 
         run_options = TranslationRunOptions(
+            model_name=model_name or job.model_name or self.model_name,
+            prompt_version=prompt_version or job.prompt_version or self.prompt_version,
             source_lang=source_lang,
             target_lang=target_lang,
             style=style,
@@ -224,6 +233,8 @@ class TranslationService:
             target_language=run_options.target_lang,
             detected_lang=detected_lang,
             language_confidence=language_confidence,
+            model_name=run_options.model_name,
+            prompt_version=run_options.prompt_version,
         )
 
         return await self._translate_job(job=job, run_options=run_options)
@@ -332,8 +343,9 @@ class TranslationService:
                 selected_glossary_terms=selected_glossary_terms,
             )
             try:
-                result = await self.ollama_client.chat(
+                result = await self._chat(
                     messages,
+                    model_name=job.model_name,
                     options=run_options.options,
                     think=run_options.think,
                 )
@@ -437,8 +449,9 @@ class TranslationService:
         prompt_version = self.prompt_loader.select_prompt_version(
             source_lang=run_options.source_lang,
             target_lang=run_options.target_lang,
-            prompt_version=self.prompt_version,
+            prompt_version=run_options.prompt_version,
         )
+        run_options = replace(run_options, prompt_version=prompt_version)
         system_prompt = self.prompt_loader.load(
             prompt_version,
             source_lang=run_options.source_lang,
@@ -462,6 +475,7 @@ class TranslationService:
             status="running",
             source_language=run_options.source_lang,
             target_language=run_options.target_lang,
+            model_name=run_options.model_name,
             prompt_version=prompt_version,
         )
 
@@ -546,7 +560,7 @@ class TranslationService:
             total_pages=len(all_pages),
             has_next_page=current_page_index < len(all_pages) - 1,
             translated_text=translated_text,
-            model=self.model_name,
+            model=run_options.model_name,
             prompt_version=prompt_version,
             style=run_options.style,
             elapsed_ms=elapsed_ms,
@@ -610,7 +624,7 @@ class TranslationService:
                 source_text=chunk["source_text"],
                 source_lang=run_options.source_lang,
                 target_lang=run_options.target_lang,
-                model_name=self.model_name,
+                model_name=run_options.model_name,
                 prompt_version=prompt_version,
                 style=run_options.style,
                 honorific_policy=run_options.honorific_policy,
@@ -650,8 +664,9 @@ class TranslationService:
                 selected_glossary_terms=selected_glossary_terms,
             )
             try:
-                result = await self.ollama_client.chat(
+                result = await self._chat(
                     messages,
+                    model_name=run_options.model_name,
                     options=run_options.options,
                     think=run_options.think,
                 )
@@ -677,7 +692,7 @@ class TranslationService:
                         translated_text=translated_text,
                         source_lang=run_options.source_lang,
                         target_lang=run_options.target_lang,
-                        model_name=self.model_name,
+                        model_name=run_options.model_name,
                         prompt_version=prompt_version,
                         style=run_options.style,
                         honorific_policy=run_options.honorific_policy,
@@ -771,6 +786,30 @@ class TranslationService:
             for chunk in chunks
         ]
 
+    async def _chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        model_name: str,
+        options: dict[str, Any] | None,
+        think: str | bool,
+    ) -> Any:
+        try:
+            return await self.ollama_client.chat(
+                messages,
+                model=model_name,
+                options=options,
+                think=think,
+            )
+        except TypeError as exc:
+            if "model" not in str(exc):
+                raise
+            return await self.ollama_client.chat(
+                messages,
+                options=options,
+                think=think,
+            )
+
     def _run_options_from_job(
         self,
         job: TranslationJob,
@@ -778,6 +817,8 @@ class TranslationService:
         page_index: int,
     ) -> TranslationRunOptions:
         return TranslationRunOptions(
+            model_name=job.model_name,
+            prompt_version=job.prompt_version,
             source_lang=job.source_language,
             target_lang=job.target_language,
             style=job.style,
@@ -856,6 +897,8 @@ class TranslationService:
 
     def _validate_request(self, request: TranslationRequest) -> None:
         run_options = TranslationRunOptions(
+            model_name=request.model_name or self.model_name,
+            prompt_version=request.prompt_version or self.prompt_version,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             style=request.style,

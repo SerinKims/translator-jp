@@ -10,6 +10,7 @@ from app.services.glossary import GlossaryImportResult
 
 
 class GlossaryTermCreate(BaseModel):
+    glossary_set_id: int | None = None
     source_lang: str = "ja"
     target_lang: str = "ko"
     source_term: str
@@ -19,6 +20,7 @@ class GlossaryTermCreate(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     priority: int = 0
     is_required: bool = True
+    is_case_sensitive: bool = False
     is_active: bool = True
 
     @field_validator("source_lang", "target_lang", "source_term", "target_term", "term_type")
@@ -36,6 +38,7 @@ class GlossaryTermCreate(BaseModel):
 
 
 class GlossaryTermUpdate(BaseModel):
+    glossary_set_id: int | None = None
     source_lang: str | None = None
     target_lang: str | None = None
     source_term: str | None = None
@@ -45,6 +48,7 @@ class GlossaryTermUpdate(BaseModel):
     aliases: list[str] | None = None
     priority: int | None = None
     is_required: bool | None = None
+    is_case_sensitive: bool | None = None
     is_active: bool | None = None
 
     @field_validator("source_lang", "target_lang", "source_term", "target_term", "term_type")
@@ -88,6 +92,7 @@ class GlossaryTermResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    glossary_set_id: int | None
     source_lang: str
     target_lang: str
     source_term: str
@@ -97,17 +102,20 @@ class GlossaryTermResponse(BaseModel):
     aliases: list[str]
     priority: int
     is_required: bool
+    is_case_sensitive: bool
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
 
 class GlossaryCandidateApproveRequest(BaseModel):
+    glossary_set_id: int | None = None
     term_type: str = "common"
     description: str | None = None
     aliases: list[str] = Field(default_factory=list)
     priority: int = 0
     is_required: bool = True
+    is_case_sensitive: bool = False
 
     @field_validator("term_type")
     @classmethod
@@ -142,6 +150,7 @@ class GlossaryCandidateResponse(BaseModel):
 def glossary_term_to_response(term: GlossaryTerm) -> GlossaryTermResponse:
     return GlossaryTermResponse(
         id=term.id,
+        glossary_set_id=term.glossary_set_id,
         source_lang=term.source_lang,
         target_lang=term.target_lang,
         source_term=term.source_term,
@@ -151,6 +160,7 @@ def glossary_term_to_response(term: GlossaryTerm) -> GlossaryTermResponse:
         aliases=parse_aliases(term.aliases),
         priority=term.priority,
         is_required=bool(term.is_required),
+        is_case_sensitive=bool(term.is_case_sensitive),
         is_active=bool(term.is_active),
         created_at=term.created_at,
         updated_at=term.updated_at,

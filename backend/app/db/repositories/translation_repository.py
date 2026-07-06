@@ -104,6 +104,7 @@ class TranslationRepository:
         target_language: str | None = None,
         detected_lang: str | None = None,
         language_confidence: float | None = None,
+        model_name: str | None = None,
         prompt_version: str | None = None,
     ) -> TranslationJob | None:
         job = self.get_job(job_id)
@@ -130,6 +131,8 @@ class TranslationRepository:
             job.detected_lang = detected_lang
         if language_confidence is not None:
             job.language_confidence = language_confidence
+        if model_name is not None:
+            job.model_name = model_name
         if prompt_version is not None:
             job.prompt_version = prompt_version
         if clear_error_message:

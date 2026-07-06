@@ -4,7 +4,6 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = BACKEND_DIR.parent
 
@@ -13,6 +12,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
+    cors_allow_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     database_url: str = "sqlite:///./translation.db"
 

@@ -71,6 +71,8 @@ async def translate_page(
             use_glossary=request.use_glossary,
             use_cache=request.use_cache,
             stream=request.stream,
+            model_name=request.model_name,
+            prompt_version=request.prompt_version,
             think=request.think,
             options=request.options,
             translate_scope="current_page",

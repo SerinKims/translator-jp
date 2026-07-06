@@ -95,4 +95,28 @@ pixiv
 Ollama
 ```
 
+---
+
+## 7. 2026-07-06 Translation API Payload Settings
+
+Frontend sends user-configured request settings to Backend translation and
+pixiv fetch APIs instead of keeping them as fixed UI-only values.
+
+```text
+model_name
+prompt_version
+source_lang
+target_lang
+style
+honorific_policy
+preserve_names
+use_glossary
+use_cache
+think
+options
+```
+
+`client_options` remains a frontend-only state restore field and is removed
+before the backend payload is sent.
+
 모든 수집/번역 작업은 Backend API를 통해 수행한다.

@@ -1,5 +1,32 @@
 # API Specification
 
+## 2026-07-06 Glossary DB Field Contract
+
+`POST /api/glossary`, `PATCH /api/glossary/{term_id}`, and
+`POST /api/glossary/candidates/{candidate_id}/approve` accept DB-backed
+glossary fields:
+
+```json
+{
+  "glossary_set_id": null,
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "source_term": "魔王",
+  "target_term": "마왕",
+  "term_type": "title",
+  "description": "판타지 직함",
+  "aliases": ["魔王様"],
+  "priority": 90,
+  "is_required": true,
+  "is_case_sensitive": false,
+  "is_active": true
+}
+```
+
+Responses include `glossary_set_id` and `is_case_sensitive` in addition to the
+existing glossary fields. CSV import also accepts optional `glossary_set_id`
+and `is_case_sensitive` columns.
+
 ## 2026-06-30 Page Translation Contract
 
 When `text` contains `[newpage]`, translation is page-scoped.
@@ -482,3 +509,29 @@ zh-CN -> ko: translate_zh_ko_v1
 zh-TW -> ko: translate_zh_ko_v1
 en -> ko: translate_en_ko_v1
 ```
+
+## 2026-07-06 Request-Scoped Model Settings
+
+Translation and pixiv fetch requests may include DB-backed request settings:
+
+```json
+{
+  "model_name": "gemma4:26b-a4b-it-q4_K_M",
+  "prompt_version": "translate_ja_ko_v1",
+  "style": "webnovel",
+  "honorific_policy": "preserve",
+  "think": false,
+  "options": {
+    "temperature": 0.3,
+    "top_p": 0.9,
+    "num_ctx": 8192,
+    "num_predict": 4096
+  }
+}
+```
+
+These values are persisted to `translation_jobs.model_name`,
+`translation_jobs.prompt_version`, `translation_jobs.style`,
+`translation_jobs.honorific_policy`, `translation_jobs.ollama_think`, and
+`translation_jobs.ollama_options_json`. Cache keys use the request-scoped model,
+prompt, style, honorific policy, and preserve-name setting.

@@ -8,23 +8,23 @@ import type { InputMode } from "@/types/translation";
 const sectionText: Record<AppSection, { title: string; desc: string }> = {
   translate: {
     title: "번역 작업",
-    desc: "URL 또는 텍스트를 입력하고 API의 page 단위 번역 흐름으로 첫 page부터 번역합니다.",
+    desc: "URL 원문을 가져오거나 텍스트를 붙여넣고 page 단위로 번역합니다.",
   },
   viewer: {
     title: "번역본 보기",
-    desc: "API 응답의 page 상태를 기준으로 원문과 번역본을 확인합니다.",
+    desc: "원문과 번역본을 page 단위로 확인하고 복사합니다.",
   },
   history: {
     title: "번역 이력",
-    desc: "지금까지 실행한 번역 작업을 다시 열거나 삭제합니다.",
+    desc: "백엔드에 저장된 과거 번역 작업을 다시 엽니다.",
   },
   glossary: {
     title: "용어집",
-    desc: "고유명사와 반복 용어를 추가, 수정, 삭제합니다.",
+    desc: "고유명사와 반복 용어를 관리합니다.",
   },
   settings: {
     title: "모델 설정",
-    desc: "번역 모델, prompt version, token 설정을 관리합니다.",
+    desc: "번역 옵션과 로컬 선호 설정을 관리합니다.",
   },
 };
 
@@ -45,7 +45,7 @@ export function AppHeader({
 }) {
   const text = sectionText[activeSection];
   const done = statusLabel.includes("완료");
-  const pending = statusLabel.includes("대기");
+  const pending = statusLabel.includes("대기") || statusLabel.includes("준비");
 
   return (
     <header className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -62,11 +62,11 @@ export function AppHeader({
               <strong>{inputMode === "url" ? "URL" : "텍스트"}</strong>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">페이지</span>
+              <span className="text-muted-foreground">page</span>
               <strong>{pageCount > 0 ? `${currentPageIndex + 1} / ${pageCount}` : "0 / 0"}</strong>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">번역 상태</span>
+              <span className="text-muted-foreground">상태</span>
               <Badge variant={done ? "success" : pending ? "warning" : "secondary"}>{statusLabel}</Badge>
             </div>
           </div>

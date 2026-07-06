@@ -55,6 +55,8 @@ class FetchService:
         style: str = "webnovel",
         honorific_policy: str = "preserve",
         preserve_names: bool = True,
+        model_name: str | None = None,
+        prompt_version: str | None = None,
         think: str | bool = False,
         options: dict[str, Any] | None = None,
     ) -> PixivFetchResponse:
@@ -113,6 +115,8 @@ class FetchService:
             target_language=target_lang,
             detected_lang=detected_lang,
             language_confidence=language_confidence,
+            model_name=model_name or self.translation_service.model_name,
+            prompt_version=prompt_version or self.translation_service.prompt_version,
             style=style,
             honorific_policy=honorific_policy,
             preserve_names=preserve_names,
@@ -146,6 +150,8 @@ class FetchService:
         use_glossary: bool = True,
         use_cache: bool = True,
         stream: bool = False,
+        model_name: str | None = None,
+        prompt_version: str | None = None,
         think: str | bool = False,
         options: dict[str, Any] | None = None,
     ) -> PixivTranslateResponse:
@@ -157,6 +163,8 @@ class FetchService:
             style=style,
             honorific_policy=honorific_policy,
             preserve_names=preserve_names,
+            model_name=model_name,
+            prompt_version=prompt_version,
             think=think,
             options=options,
         )
@@ -174,6 +182,8 @@ class FetchService:
                 use_glossary=use_glossary,
                 use_cache=use_cache,
                 stream=stream,
+                model_name=model_name,
+                prompt_version=prompt_version,
                 think=think,
                 options=options,
             )

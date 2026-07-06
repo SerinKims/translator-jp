@@ -26,7 +26,7 @@ export function AppSidebar({
   return (
     <aside className="flex min-h-screen w-full flex-col bg-slate-950 px-4 py-6 text-white lg:w-64">
       <div className="flex items-center gap-3 px-2">
-        <div className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 font-extrabold">T</div>
+        <div className="grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-indigo-500 to-cyan-400 font-extrabold">T</div>
         <div>
           <div className="text-base font-extrabold">번역기</div>
           <div className="text-xs text-slate-400">URL · 텍스트 · 용어집</div>
@@ -56,10 +56,10 @@ export function AppSidebar({
         })}
       </nav>
 
-      <div className="mt-auto rounded-lg bg-white/10 p-4 text-sm leading-6 text-slate-300">
+      <div className="mt-auto rounded-md bg-white/10 p-4 text-sm leading-6 text-slate-300">
         <strong className="text-white">권장 흐름</strong>
         <br />
-        URL 또는 텍스트 입력 → 첫 page 번역 → 결과 확인 → 필요 시 전체 번역
+        원문 준비 → 첫 page 확인 → 전체 번역 → 이력에서 다시 열기
       </div>
     </aside>
   );

@@ -15,6 +15,7 @@ import type { TranslationJob, TranslationRequest, UrlTranslationRequest, ViewerM
 export function TranslationViewer({
   currentJob,
   currentPageIndex,
+  errorMessage,
   isTranslating,
   onPageChange,
   onTranslateAllText,
@@ -25,11 +26,12 @@ export function TranslationViewer({
 }: {
   currentJob: TranslationJob | null;
   currentPageIndex: number;
+  errorMessage: string | null;
   isTranslating: boolean;
   onPageChange: (index: number) => void;
   onTranslateAllText: (request: TranslationRequest) => void;
   onTranslateAllUrl: (request: UrlTranslationRequest) => void;
-  onTranslateCurrent: ReturnType<typeof createPageTranslateRequest> extends infer T ? (request: T) => void : never;
+  onTranslateCurrent: (request: ReturnType<typeof createPageTranslateRequest>) => void;
   setViewerMode: (mode: ViewerMode) => void;
   viewerMode: ViewerMode;
 }) {
@@ -81,7 +83,7 @@ export function TranslationViewer({
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <CardTitle>번역본 보기</CardTitle>
-            <CardDescription className="mt-2">API 응답의 page 상태를 기준으로 원문과 번역본을 이동하며 확인합니다.</CardDescription>
+            <CardDescription className="mt-2">page 단위로 원문과 한국어 번역본을 확인합니다.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => currentJob && onTranslateCurrent(createPageTranslateRequest(currentJob))} disabled={!currentJob || isTranslating}>
@@ -94,6 +96,22 @@ export function TranslationViewer({
             </Button>
           </div>
         </div>
+
+        {currentJob && (
+          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="font-semibold">{currentJob.title}</div>
+            <div className="mt-1 flex flex-wrap gap-2 text-muted-foreground">
+              <span>{currentJob.inputMode === "url" ? "URL" : "텍스트"}</span>
+              {currentJob.sourceAuthor && <span>작가: {currentJob.sourceAuthor}</span>}
+              {currentJob.sourceUrl && <span className="truncate">원문: {currentJob.sourceUrl}</span>}
+              <span>모델: {currentJob.model}</span>
+              <span>Prompt: {currentJob.promptVersion}</span>
+            </div>
+          </div>
+        )}
+
+        {errorMessage && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{errorMessage}</div>}
+
         <Separator />
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <PageNavigator currentPageIndex={currentPageIndex} onPageChange={onPageChange} pageCount={pageCount} />
@@ -104,7 +122,7 @@ export function TranslationViewer({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="translation">번역본만 보기</SelectItem>
-                <SelectItem value="both">원문 + 번역본 보기</SelectItem>
+                <SelectItem value="both">원문 + 번역본 같이 보기</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -118,12 +136,12 @@ export function TranslationViewer({
           <div className={viewerMode === "both" ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
             {viewerMode === "both" && (
               <ViewerPanel title="원문" meta={`page ${currentPageIndex + 1} / ${pageCount}`}>
-                {activePage?.sourceText || "아직 원문이 없습니다."}
+                {activePage?.sourceText || "원문이 없습니다."}
               </ViewerPanel>
             )}
             <ViewerPanel
               title="한국어 번역본"
-              meta={<Badge variant={activePage?.status === "completed" ? "success" : "secondary"}>{activePage?.status === "completed" ? "완료" : "대기"}</Badge>}
+              meta={<Badge variant={activePage?.status === "completed" ? "success" : activePage?.status === "failed" ? "destructive" : "secondary"}>{statusLabel(activePage?.status)}</Badge>}
               action={
                 <Button type="button" variant="outline" size="sm" onClick={copyTranslation}>
                   <Clipboard className="h-4 w-4" />
@@ -152,11 +170,11 @@ function ViewerPanel({
   title: string;
 }) {
   return (
-    <article className="flex min-h-96 flex-col overflow-hidden rounded-lg border bg-white">
+    <article className="flex min-h-96 flex-col overflow-hidden rounded-md border bg-white">
       <header className="flex min-h-12 items-center justify-between gap-3 border-b bg-muted/50 px-4 py-3 text-sm font-semibold">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span>{title}</span>
-          <span className="text-xs font-normal text-muted-foreground">{meta}</span>
+          <span className="truncate text-xs font-normal text-muted-foreground">{meta}</span>
         </div>
         {action}
       </header>
@@ -167,8 +185,21 @@ function ViewerPanel({
 
 function EmptyViewer() {
   return (
-    <div className="grid min-h-80 place-items-center rounded-lg border border-dashed bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-      아직 원문이 없습니다. 번역 작업 화면에서 URL 또는 텍스트를 입력하세요.
+    <div className="grid min-h-80 place-items-center rounded-md border border-dashed bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+      아직 준비된 원문이 없습니다. 번역 작업 화면에서 URL 원문을 가져오거나 텍스트를 준비하세요.
     </div>
   );
+}
+
+function statusLabel(status: string | undefined): string {
+  if (status === "completed") {
+    return "완료";
+  }
+  if (status === "failed") {
+    return "실패";
+  }
+  if (status === "fetched") {
+    return "원문 준비";
+  }
+  return "대기";
 }

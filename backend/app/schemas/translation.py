@@ -7,6 +7,8 @@ from pydantic import BaseModel, field_validator
 
 
 class OllamaRequestOptions(BaseModel):
+    model_name: str | None = None
+    prompt_version: str | None = None
     think: str | bool = False
     options: dict[str, Any] | None = None
 
