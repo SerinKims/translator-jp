@@ -20,7 +20,6 @@ export type OllamaOptionValue = string | number | boolean | null;
 
 export interface ModelSettings {
   defaultModel: string;
-  promptVersion: string;
   style: TranslationStyle;
   honorificPolicy: HonorificPolicy;
   think: string | boolean;
@@ -32,7 +31,7 @@ export interface ModelSettings {
 
 export interface TranslationOptions {
   model: string;
-  promptVersion: string;
+  promptVersion?: string;
   style: TranslationStyle;
   honorificPolicy: HonorificPolicy;
   think: string | boolean;
@@ -49,7 +48,7 @@ export interface TranslationRequest {
   client_options?: TranslationOptions;
   text: string;
   model_name: string;
-  prompt_version: string;
+  prompt_version?: string;
   source_lang: SourceLanguage;
   target_lang: TargetLanguage;
   translate_scope: TranslateScope;
@@ -148,7 +147,6 @@ export interface TranslationApiResult {
 
 export const DEFAULT_MODEL_SETTINGS: ModelSettings = {
   defaultModel: "gemma4:26b-a4b-it-q4_K_M",
-  promptVersion: "translate_ja_ko_v1",
   style: "webnovel",
   honorificPolicy: "preserve",
   think: false,

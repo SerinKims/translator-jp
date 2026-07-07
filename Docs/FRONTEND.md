@@ -104,7 +104,6 @@ pixiv fetch APIs instead of keeping them as fixed UI-only values.
 
 ```text
 model_name
-prompt_version
 source_lang
 target_lang
 style
@@ -115,6 +114,10 @@ use_cache
 think
 options
 ```
+
+Frontend does not send `prompt_version` in normal translation or pixiv fetch
+requests. Backend resolves it from the selected or auto-detected source
+language and returns the applied value for display/history.
 
 `client_options` remains a frontend-only state restore field and is removed
 before the backend payload is sent.

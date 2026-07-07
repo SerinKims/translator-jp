@@ -510,6 +510,13 @@ zh-TW -> ko: translate_zh_ko_v1
 en -> ko: translate_en_ko_v1
 ```
 
+Normal frontend requests omit `prompt_version`. The backend selects the prompt
+from the resolved `source_lang` and `target_lang`, then returns the applied
+`prompt_version` in the response. `prompt_version` remains an optional backend
+override for tests and maintenance tools; if the global Japanese default
+`translate_ja_ko_v1` is supplied with a non-Japanese source language, it falls
+back to that language pair's default prompt.
+
 ## 2026-07-06 Request-Scoped Model Settings
 
 Translation and pixiv fetch requests may include DB-backed request settings:
@@ -517,7 +524,6 @@ Translation and pixiv fetch requests may include DB-backed request settings:
 ```json
 {
   "model_name": "gemma4:26b-a4b-it-q4_K_M",
-  "prompt_version": "translate_ja_ko_v1",
   "style": "webnovel",
   "honorific_policy": "preserve",
   "think": false,
@@ -531,7 +537,9 @@ Translation and pixiv fetch requests may include DB-backed request settings:
 ```
 
 These values are persisted to `translation_jobs.model_name`,
-`translation_jobs.prompt_version`, `translation_jobs.style`,
+`translation_jobs.style`,
 `translation_jobs.honorific_policy`, `translation_jobs.ollama_think`, and
-`translation_jobs.ollama_options_json`. Cache keys use the request-scoped model,
-prompt, style, honorific policy, and preserve-name setting.
+`translation_jobs.ollama_options_json`. The backend-selected prompt version is
+persisted to `translation_jobs.prompt_version`. Cache keys use the
+request-scoped model, resolved prompt, style, honorific policy, and
+preserve-name setting.

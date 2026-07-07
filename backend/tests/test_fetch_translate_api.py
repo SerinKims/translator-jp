@@ -170,6 +170,37 @@ def test_fetch_translate_route_passes_request_to_fetch_service(db_session: Sessi
     assert response.json()["current_page_index"] == 1
 
 
+def test_fetch_translate_route_allows_omitted_prompt_version(db_session: Session) -> None:
+    fake_service = FakeFetchTranslateService()
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_fetch_service] = lambda: fake_service
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/fetch/pixiv/translate",
+            json={
+                "url": PIXIV_URL,
+                "source_lang": "en",
+                "target_lang": "ko",
+                "translate_scope": "first_page",
+                "page_index": 0,
+                "model_name": "custom-model:latest",
+                "style": "webnovel",
+                "honorific_policy": "preserve",
+                "preserve_names": True,
+                "use_glossary": True,
+                "use_cache": True,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert fake_service.calls[0]["source_lang"] == "en"
+    assert fake_service.calls[0]["prompt_version"] is None
+
+
 def test_fetch_translate_with_translator_mock_saves_source_metadata(
     db_session: Session,
 ) -> None:

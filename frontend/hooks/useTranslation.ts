@@ -109,7 +109,6 @@ export function useTranslation() {
           url: request.url,
           translate_after_fetch: false,
           model_name: request.model_name,
-          prompt_version: request.prompt_version,
           source_lang: request.source_lang,
           target_lang: request.target_lang,
           style: request.style,
@@ -149,7 +148,6 @@ export function useTranslation() {
           url: request.url,
           translate_after_fetch: false,
           model_name: request.model_name,
-          prompt_version: request.prompt_version,
           source_lang: request.source_lang,
           target_lang: request.target_lang,
           style: request.style,
@@ -244,7 +242,6 @@ export function useTranslation() {
           translateTextMutation.mutate({
             text: currentJob.pages.map((page) => page.sourceText).join("\n\n[newpage]\n\n"),
             model_name: currentJob.options.model,
-            prompt_version: currentJob.options.promptVersion,
             source_lang: currentJob.sourceLang,
             target_lang: "ko",
             translate_scope: "current_page",
@@ -309,7 +306,7 @@ function requestToUiOptions(request: UrlTranslationRequest): TranslationOptions 
   const clientOptions = request.client_options;
   return {
     model: clientOptions?.model ?? "gemma4:26b-a4b-it-q4_K_M",
-    promptVersion: clientOptions?.promptVersion ?? "translate_ja_ko_v1",
+    promptVersion: clientOptions?.promptVersion,
     style: request.style,
     honorificPolicy: request.honorific_policy,
     think: request.think,

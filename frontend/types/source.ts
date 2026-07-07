@@ -39,7 +39,7 @@ export interface PixivTranslateRequest {
   translate_scope: TranslateScope;
   page_index: number;
   model_name: string;
-  prompt_version: string;
+  prompt_version?: string;
   style: TranslationStyle;
   honorific_policy: HonorificPolicy;
   preserve_names: boolean;

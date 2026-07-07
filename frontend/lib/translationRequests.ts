@@ -12,7 +12,7 @@ import type {
 export function createOptionsFromSettings(settings: ModelSettings, overrides?: Partial<TranslationOptions>): TranslationOptions {
   return {
     model: overrides?.model ?? settings.defaultModel,
-    promptVersion: overrides?.promptVersion ?? settings.promptVersion,
+    promptVersion: overrides?.promptVersion,
     style: overrides?.style ?? settings.style,
     honorificPolicy: overrides?.honorificPolicy ?? settings.honorificPolicy,
     think: overrides?.think ?? settings.think,
@@ -35,7 +35,6 @@ export function createTranslationRequest(input: {
     client_options: input.options,
     text: input.text,
     model_name: input.options.model,
-    prompt_version: input.options.promptVersion,
     source_lang: input.sourceLang,
     target_lang: "ko",
     translate_scope: "first_page",
@@ -79,7 +78,6 @@ export function createPageTranslateRequest(job: TranslationJob): PageTranslateRe
   return {
     client_options: job.options,
     model_name: job.options.model,
-    prompt_version: job.options.promptVersion,
     source_lang: job.sourceLang,
     target_lang: job.targetLang,
     style: job.options.style,

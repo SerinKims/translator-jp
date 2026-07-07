@@ -328,5 +328,13 @@ harness/prompts/translate_en_ko_v1.md
 lookup, cache key generation, and chunk persistence all use the resolved source
 language. If `source_lang=auto`, language detection runs before prompt loading.
 
+Frontend translation requests omit `prompt_version` in the normal flow. The
+backend selects the default prompt version for the resolved language pair and
+returns the applied `prompt_version` in translation responses for history,
+cache, and debugging. `prompt_version` remains an optional backend override for
+tests or maintenance tooling; the global Japanese default
+`translate_ja_ko_v1` is remapped to the language-pair default when used with
+non-Japanese source languages.
+
 Unsupported target languages are rejected because MVP target language is only
 Korean (`ko`).

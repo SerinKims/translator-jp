@@ -85,7 +85,6 @@ export function TranslatePanel({
     url: sourceUrl.trim(),
     translate_after_fetch: false,
     model_name: mergedOptions.model,
-    prompt_version: mergedOptions.promptVersion,
     source_lang: sourceLang,
     target_lang: "ko",
     style: mergedOptions.style,

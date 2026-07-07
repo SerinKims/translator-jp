@@ -156,6 +156,41 @@ def test_translate_api_persists_request_model_and_prompt_settings(
     assert saved.ollama_options_json == '{"num_ctx": 4096, "temperature": 0.7}'
 
 
+def test_translate_api_omitted_prompt_version_uses_language_default(
+    db_session: Session,
+) -> None:
+    fake_client = FakeOllamaClient(["translated"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/translate",
+            json={
+                "text": "He closed his eyes and waited for dawn.",
+                "source_lang": "en",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    user_prompt = fake_client.calls[0]["messages"][1]["content"]
+    assert payload["source_lang"] == "en"
+    assert payload["prompt_version"] == "translate_en_ko_v1"
+    assert "source_lang: en" in user_prompt
+
+    saved = db_session.get(TranslationJob, payload["job_id"])
+    assert saved is not None
+    assert saved.source_language == "en"
+    assert saved.prompt_version == "translate_en_ko_v1"
+
+
 def test_translate_api_rejects_non_ko_target(db_session: Session) -> None:
     app.dependency_overrides[get_translation_service] = lambda: TranslationService(
         db_session,

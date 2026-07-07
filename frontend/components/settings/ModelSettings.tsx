@@ -55,7 +55,7 @@ export function ModelSettings({
       <Card>
         <CardHeader>
           <CardTitle>모델 설정</CardTitle>
-          <CardDescription>백엔드가 직접 받지 않는 모델명과 prompt version은 로컬 설정으로 보관하고, 응답에는 백엔드 값을 표시합니다.</CardDescription>
+          <CardDescription>모델명과 Ollama 옵션은 로컬 설정으로 보관하고, prompt version은 백엔드가 원문 언어에 따라 자동 선택합니다.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
@@ -70,9 +70,6 @@ export function ModelSettings({
                   <SelectItem value="qwen2.5:14b">qwen2.5:14b</SelectItem>
                 </SelectContent>
               </Select>
-            </LabeledField>
-            <LabeledField label="Prompt Version">
-              <Input value={draft.promptVersion} onChange={(event) => setDraft((current) => ({ ...current, promptVersion: event.target.value }))} />
             </LabeledField>
             <LabeledField label="Style">
               <Select value={draft.style} onValueChange={(value) => setDraft((current) => ({ ...current, style: value as ModelSettingsType["style"] }))}>
@@ -152,7 +149,7 @@ export function ModelSettings({
           <br />
           temperature, top_p, context window, max tokens는 Ollama options로 전달합니다.
           <br />
-          모델명과 prompt version은 백엔드 설정 기준으로 응답되며 이 화면에서는 선호 설정으로 보관됩니다.
+          모델명과 Ollama 옵션은 요청에 전달되며, prompt version은 번역 응답에 포함된 백엔드 선택값을 표시합니다.
         </CardContent>
       </Card>
 
