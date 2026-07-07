@@ -25,7 +25,7 @@ import type {
 } from "@/types/translation";
 import type { PixivFetchRequest } from "@/types/source";
 
-const sampleText = `吾輩は猫である。名前はまだ無い。
+const sourceTextHint = `吾輩は猫である。名前はまだ無い。
 [newpage]
 どこで生れたかとんと見当がつかぬ。`;
 
@@ -57,8 +57,8 @@ export function TranslatePanel({
   onTranslateUrlFirst: (request: UrlTranslationRequest) => void;
 }) {
   const [inputMode, setInputMode] = useState<InputMode>("url");
-  const [sourceUrl, setSourceUrl] = useState("https://www.pixiv.net/novel/show.php?id=");
-  const [sourceText, setSourceText] = useState(sampleText);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceText, setSourceText] = useState("");
   const [sourceLang, setSourceLang] = useState<SourceLanguage>("ja");
   const [viewerMode, setViewerMode] = useState<ViewerMode>("both");
   const [options, setOptions] = useState<TranslationOptions>(() => createOptionsFromSettings(modelSettings));
@@ -207,7 +207,7 @@ export function TranslatePanel({
                   value={sourceText}
                   onChange={(event) => setSourceText(event.target.value)}
                   className="min-h-72 font-mono leading-7"
-                  placeholder="원문을 붙여넣으세요. [newpage] 기준으로 page가 나뉩니다."
+                  placeholder={sourceTextHint}
                 />
               </LabeledField>
               <Badge variant="secondary">{pageCount} page</Badge>
