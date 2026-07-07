@@ -3,7 +3,7 @@
 import { BookOpenText, Clipboard, Languages } from "lucide-react";
 import { useState } from "react";
 
-import { PageNavigator } from "@/components/translator/PageNavigator";
+import { PageNavigator, PageStepButtons } from "@/components/translator/PageNavigator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,24 +133,30 @@ export function TranslationViewer({
         {!currentJob ? (
           <EmptyViewer />
         ) : (
-          <div className={viewerMode === "both" ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
-            {viewerMode === "both" && (
-              <ViewerPanel title="원문" meta={`page ${currentPageIndex + 1} / ${pageCount}`}>
-                {activePage?.sourceText || "원문이 없습니다."}
+          <div className="space-y-4">
+            <div className={viewerMode === "both" ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
+              {viewerMode === "both" && (
+                <ViewerPanel title="원문" meta={`page ${currentPageIndex + 1} / ${pageCount}`}>
+                  {activePage?.sourceText || "원문이 없습니다."}
+                </ViewerPanel>
+              )}
+              <ViewerPanel
+                title="한국어 번역본"
+                meta={<Badge variant={activePage?.status === "completed" ? "success" : activePage?.status === "failed" ? "destructive" : "secondary"}>{statusLabel(activePage?.status)}</Badge>}
+                action={
+                  <Button type="button" variant="outline" size="sm" onClick={copyTranslation}>
+                    <Clipboard className="h-4 w-4" />
+                    {copyLabel}
+                  </Button>
+                }
+              >
+                {activePage?.translatedText || "아직 이 page의 번역 결과가 없습니다. 현재 page 번역 또는 전체 번역을 실행하세요."}
               </ViewerPanel>
-            )}
-            <ViewerPanel
-              title="한국어 번역본"
-              meta={<Badge variant={activePage?.status === "completed" ? "success" : activePage?.status === "failed" ? "destructive" : "secondary"}>{statusLabel(activePage?.status)}</Badge>}
-              action={
-                <Button type="button" variant="outline" size="sm" onClick={copyTranslation}>
-                  <Clipboard className="h-4 w-4" />
-                  {copyLabel}
-                </Button>
-              }
-            >
-              {activePage?.translatedText || "아직 이 page의 번역 결과가 없습니다. 현재 page 번역 또는 전체 번역을 실행하세요."}
-            </ViewerPanel>
+            </div>
+            <div className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm text-muted-foreground">page {currentPageIndex + 1} / {pageCount}</span>
+              <PageStepButtons currentPageIndex={currentPageIndex} onPageChange={onPageChange} pageCount={pageCount} />
+            </div>
           </div>
         )}
       </CardContent>
