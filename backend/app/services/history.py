@@ -61,6 +61,14 @@ class HistoryService:
             ],
         )
 
+    def delete_translation(self, job_id: int) -> None:
+        deleted = self.translation_repository.delete_job(job_id)
+        if not deleted:
+            raise HistoryServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+    def delete_all_translations(self) -> None:
+        self.translation_repository.delete_all_jobs()
+
     def _job_to_history_item(self, job: TranslationJob) -> TranslationHistoryItem:
         return TranslationHistoryItem(
             job_id=job.id,

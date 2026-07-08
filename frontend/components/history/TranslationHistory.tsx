@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeOff, FolderOpen, Trash2 } from "lucide-react";
+import { FolderOpen, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -45,11 +45,11 @@ export function TranslationHistory({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <CardTitle>번역 이력</CardTitle>
-            <CardDescription className="mt-2">백엔드에 저장된 번역 작업을 다시 열 수 있습니다. 삭제는 현재 프론트에서 숨김 처리됩니다.</CardDescription>
+            <CardDescription className="mt-2">백엔드에 저장된 번역 작업을 다시 열거나 영구 삭제할 수 있습니다.</CardDescription>
           </div>
           <Button type="button" variant="destructive" onClick={() => setIsClearOpen(true)} disabled={histories.length === 0 || isMutating}>
             <Trash2 className="h-4 w-4" />
-            전체 숨김
+            전체 삭제
           </Button>
         </div>
 
@@ -87,8 +87,8 @@ export function TranslationHistory({
                   열기
                 </Button>
                 <Button type="button" size="sm" variant="outline" onClick={() => setDeleteTarget(history)} disabled={isMutating}>
-                  <EyeOff className="h-4 w-4" />
-                  숨김
+                  <Trash2 className="h-4 w-4" />
+                  삭제
                 </Button>
               </div>
             </article>
@@ -99,8 +99,8 @@ export function TranslationHistory({
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>이 이력을 숨길까요?</AlertDialogTitle>
-            <AlertDialogDescription>현재 백엔드에는 이력 삭제 API가 없어 이 브라우저에서만 숨김 처리됩니다.</AlertDialogDescription>
+            <AlertDialogTitle>이 이력을 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>서버에 저장된 원문, 번역문, page, chunk 이력이 영구 삭제됩니다.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
@@ -112,7 +112,7 @@ export function TranslationHistory({
                 setDeleteTarget(null);
               }}
             >
-              숨김
+              삭제
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -121,8 +121,8 @@ export function TranslationHistory({
       <AlertDialog open={isClearOpen} onOpenChange={setIsClearOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>전체 이력을 숨길까요?</AlertDialogTitle>
-            <AlertDialogDescription>서버 데이터는 삭제하지 않고, 현재 브라우저의 목록에서만 숨깁니다.</AlertDialogDescription>
+            <AlertDialogTitle>전체 이력을 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>서버에 저장된 모든 번역 이력이 영구 삭제됩니다. 번역 캐시는 유지됩니다.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
@@ -132,7 +132,7 @@ export function TranslationHistory({
                 setIsClearOpen(false);
               }}
             >
-              전체 숨김
+              전체 삭제
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

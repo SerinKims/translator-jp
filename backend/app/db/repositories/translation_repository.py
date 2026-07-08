@@ -88,6 +88,23 @@ class TranslationRepository:
         )
         return list(self.db.scalars(statement))
 
+    def delete_job(self, job_id: int) -> bool:
+        job = self.get_job(job_id)
+        if job is None:
+            return False
+
+        self.db.delete(job)
+        self.db.commit()
+        return True
+
+    def delete_all_jobs(self) -> int:
+        jobs = list(self.db.scalars(select(TranslationJob)))
+        deleted_count = len(jobs)
+        for job in jobs:
+            self.db.delete(job)
+        self.db.commit()
+        return deleted_count
+
     def update_job(
         self,
         job_id: int,

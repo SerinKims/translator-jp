@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.routes.translate import get_translation_service
@@ -30,6 +30,13 @@ async def list_translations(
     return service.list_translations(limit=limit, offset=offset)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_translations(
+    service: Annotated[HistoryService, Depends(get_history_service)],
+) -> None:
+    service.delete_all_translations()
+
+
 @router.get("/{job_id}", response_model=TranslationDetailResponse)
 async def get_translation_detail(
     job_id: int,
@@ -37,6 +44,17 @@ async def get_translation_detail(
 ) -> TranslationDetailResponse:
     try:
         return service.get_translation_detail(job_id)
+    except HistoryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_translation(
+    job_id: int,
+    service: Annotated[HistoryService, Depends(get_history_service)],
+) -> None:
+    try:
+        service.delete_translation(job_id)
     except HistoryServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 

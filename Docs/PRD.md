@@ -162,6 +162,7 @@ translation_cache 적용
 translation_feedback 저장
 chunk 재시도 기능
 번역 이력 상세 조회
+번역 이력 단건/전체 삭제
 prompt versioning
 regression report 저장
 ```

@@ -7,12 +7,9 @@ import type {
 } from "@/types/history";
 import type { TranslationJob } from "@/types/translation";
 
-const HIDDEN_HISTORY_KEY = "translator-hidden-history-job-ids-v1";
-
 export async function listHistory(): Promise<TranslationHistoryItem[]> {
   const items = await apiRequest<TranslationHistoryApiItem[]>("/api/translations?limit=50&offset=0");
-  const hiddenIds = readHiddenHistoryIds();
-  return items.filter((item) => !hiddenIds.includes(item.job_id)).map(historyApiItemToUiItem);
+  return items.map(historyApiItemToUiItem);
 }
 
 export async function getHistoryDetail(jobId: number): Promise<TranslationJob> {
@@ -21,17 +18,14 @@ export async function getHistoryDetail(jobId: number): Promise<TranslationJob> {
 }
 
 export async function deleteHistory(id: string): Promise<void> {
-  // Backend API.md currently has no history delete endpoint.
-  // Keep the UI behavior by hiding the job locally until a real DELETE endpoint exists.
   const jobId = Number(id.replace(/^job-/, ""));
   if (Number.isFinite(jobId)) {
-    writeHiddenHistoryIds([...new Set([...readHiddenHistoryIds(), jobId])]);
+    await apiRequest<void>(`/api/translations/${jobId}`, { method: "DELETE" });
   }
 }
 
 export async function clearHistory(): Promise<void> {
-  const items = await apiRequest<TranslationHistoryApiItem[]>("/api/translations?limit=100&offset=0");
-  writeHiddenHistoryIds([...new Set([...readHiddenHistoryIds(), ...items.map((item) => item.job_id)])]);
+  await apiRequest<void>("/api/translations", { method: "DELETE" });
 }
 
 function historyApiItemToUiItem(item: TranslationHistoryApiItem): TranslationHistoryItem {
@@ -59,27 +53,4 @@ function historyApiItemToUiItem(item: TranslationHistoryApiItem): TranslationHis
     createdAt: item.created_at,
     updatedAt: item.updated_at,
   };
-}
-
-function readHiddenHistoryIds(): number[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-  const value = window.localStorage.getItem(HIDDEN_HISTORY_KEY);
-  if (!value) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((item): item is number => typeof item === "number") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeHiddenHistoryIds(ids: number[]): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.setItem(HIDDEN_HISTORY_KEY, JSON.stringify(ids));
 }

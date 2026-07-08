@@ -58,6 +58,8 @@ History and retry endpoints:
 ```http
 GET /api/translations
 GET /api/translations/{job_id}
+DELETE /api/translations
+DELETE /api/translations/{job_id}
 POST /api/translations/{job_id}/chunks/{chunk_index}/retry
 ```
 
@@ -66,6 +68,10 @@ POST /api/translations/{job_id}/chunks/{chunk_index}/retry
   full `original_text`.
 - `GET /api/translations/{job_id}` returns job detail, full job text fields,
   `translation_pages`, and `translation_chunks`.
+- `DELETE /api/translations/{job_id}` permanently deletes one job. Missing jobs
+  return `404`.
+- `DELETE /api/translations` permanently deletes all translation jobs. It is
+  idempotent and returns `204 No Content` even when no jobs exist.
 - Chunk retry only accepts chunks in `failed` status. It increments
   `retry_count`, reuses the job model/prompt/options, reselects glossary terms
   for the chunk, checks cache with the selected glossary hash, and then updates
@@ -323,6 +329,27 @@ GET /api/translations/{job_id}
 ```http
 POST /api/translations/{job_id}/chunks/{chunk_index}/retry
 ```
+
+### 6.4 단건 삭제
+
+```http
+DELETE /api/translations/{job_id}
+```
+
+성공 시 `204 No Content`를 반환한다. 존재하지 않는 `job_id`는 `404`를 반환한다.
+
+삭제 시 `translation_jobs` row를 영구 삭제하며, 연결된 `translation_pages`와
+`translation_chunks`는 DB cascade로 함께 삭제된다. `translation_feedback`은 기존
+외래키 정책에 따라 `job_id`와 `chunk_id`가 `NULL`이 되고, `translation_cache`는
+유지된다.
+
+### 6.5 전체 삭제
+
+```http
+DELETE /api/translations
+```
+
+성공 시 `204 No Content`를 반환한다. 삭제할 이력이 없어도 같은 응답을 반환한다.
 
 ---
 

@@ -122,6 +122,61 @@ def test_get_translation_detail_returns_404_for_missing_job(db_session: Session)
     assert response.status_code == 404
 
 
+def test_delete_translation_removes_job_from_history(db_session: Session) -> None:
+    job = TranslationRepository(db_session).create_job(
+        original_text="source",
+        translated_text="translated",
+        status="completed",
+    )
+
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    try:
+        client = TestClient(app)
+        delete_response = client.delete(f"/api/translations/{job.id}")
+        detail_response = client.get(f"/api/translations/{job.id}")
+        list_response = client.get("/api/translations")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert delete_response.status_code == 204
+    assert delete_response.content == b""
+    assert detail_response.status_code == 404
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_delete_translation_returns_404_for_missing_job(db_session: Session) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    try:
+        response = TestClient(app).delete("/api/translations/999")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_delete_all_translations_clears_history_and_is_idempotent(db_session: Session) -> None:
+    repository = TranslationRepository(db_session)
+    repository.create_job(original_text="first", status="completed")
+    repository.create_job(original_text="second", status="failed")
+
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    try:
+        client = TestClient(app)
+        first_delete_response = client.delete("/api/translations")
+        second_delete_response = client.delete("/api/translations")
+        list_response = client.get("/api/translations")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first_delete_response.status_code == 204
+    assert first_delete_response.content == b""
+    assert second_delete_response.status_code == 204
+    assert second_delete_response.content == b""
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
 def _override_db(db_session: Session):
     def _get_db() -> Generator[Session, None, None]:
         yield db_session

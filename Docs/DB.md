@@ -337,6 +337,12 @@ erDiagram
 
 긴 텍스트는 내부적으로 여러 chunk로 나뉘며, 각 chunk는 `translation_chunks`에 저장된다.
 
+번역 이력 삭제는 `translation_jobs` row를 영구 삭제하는 방식으로 처리한다.
+연결된 `translation_pages`와 `translation_chunks`는 외래키의 `ON DELETE CASCADE`로
+함께 삭제된다. `translation_feedback`은 분석/개선 데이터 보존을 위해
+`job_id`와 `chunk_id`만 `NULL` 처리하고 row는 유지한다. `translation_cache`는
+번역 조건 기반 중복 방지 캐시이므로 이력 삭제 시 삭제하지 않는다.
+
 ---
 
 ### 6.1.1 용도
