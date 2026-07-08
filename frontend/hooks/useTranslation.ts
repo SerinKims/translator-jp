@@ -31,7 +31,7 @@ export function useTranslation() {
   const queryClient = useQueryClient();
   const [currentJob, setCurrentJob] = useState<TranslationJob | null>(null);
   const [currentPageIndex, setCurrentPageIndexState] = useState(0);
-  const [viewerMode, setViewerMode] = useState<ViewerMode>("both");
+  const [viewerMode, setViewerMode] = useState<ViewerMode>("translation");
   const [progressMessage, setProgressMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -222,7 +222,7 @@ export function useTranslation() {
     },
     openJob(job: TranslationJob) {
       applyJob({ ...job, currentPageIndex: 0 });
-      setViewerMode("both");
+      setViewerMode("translation");
     },
     prepareText(text: string, sourceLang: SourceLanguage, options: TranslationOptions) {
       applyJob(createPendingJobFromText({ text, sourceLang, options }));

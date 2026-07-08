@@ -25,9 +25,7 @@ import type {
 } from "@/types/translation";
 import type { PixivFetchRequest } from "@/types/source";
 
-const sourceTextHint = `吾輩は猫である。名前はまだ無い。
-[newpage]
-どこで生れたかとんと見当がつかぬ。`;
+const sourceTextHint = `원문 텍스트를 붙여넣어 번역할 수 있습니다.`;
 
 export function TranslatePanel({
   currentJob,
@@ -60,7 +58,7 @@ export function TranslatePanel({
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [sourceLang, setSourceLang] = useState<SourceLanguage>("ja");
-  const [viewerMode, setViewerMode] = useState<ViewerMode>("both");
+  const [viewerMode, setViewerMode] = useState<ViewerMode>("translation");
   const [options, setOptions] = useState<TranslationOptions>(() => createOptionsFromSettings(modelSettings));
 
   useEffect(() => {
