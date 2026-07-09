@@ -17,7 +17,6 @@ from app.schemas.glossary import (
 )
 from app.services.glossary import GlossaryService, GlossaryServiceError
 
-
 router = APIRouter(tags=["glossary"])
 
 
@@ -73,6 +72,18 @@ def delete_glossary_term(
     except GlossaryServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return glossary_term_to_response(term)
+
+
+@router.delete("/glossary/{term_id}/permanent", status_code=204)
+def permanently_delete_glossary_term(
+    term_id: int,
+    service: Annotated[GlossaryService, Depends(get_glossary_service)],
+) -> Response:
+    try:
+        service.permanently_delete_term(term_id)
+    except GlossaryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return Response(status_code=204)
 
 
 @router.post("/glossary/import", response_model=GlossaryImportResponse)

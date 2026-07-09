@@ -41,6 +41,7 @@ export default function Home() {
     glossary.createTerm.isPending ||
     glossary.updateTerm.isPending ||
     glossary.deleteTerm.isPending ||
+    glossary.permanentlyDeleteTerm.isPending ||
     glossary.importTerms.isPending ||
     glossary.approveCandidate.isPending ||
     glossary.rejectCandidate.isPending;
@@ -120,6 +121,9 @@ export default function Home() {
             createTerm={(request) => glossary.createTerm.mutate(request)}
             updateTerm={(id, request) => glossary.updateTerm.mutate({ id, request })}
             deleteTerm={(id) => glossary.deleteTerm.mutate(id)}
+            permanentlyDeleteTerm={(id, onSuccess) =>
+              glossary.permanentlyDeleteTerm.mutate(id, { onSuccess })
+            }
           />
         )}
 

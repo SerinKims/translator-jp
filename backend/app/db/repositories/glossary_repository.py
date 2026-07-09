@@ -148,6 +148,14 @@ class GlossaryRepository:
     def deactivate_term(self, term_id: int) -> GlossaryTerm | None:
         return self.update_term(term_id, is_active=False)
 
+    def permanently_delete_term(self, term_id: int) -> bool:
+        term = self.get_term(term_id)
+        if term is None:
+            return False
+        self.db.delete(term)
+        self.db.commit()
+        return True
+
     def list_terms(
         self,
         *,

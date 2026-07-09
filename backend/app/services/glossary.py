@@ -15,6 +15,7 @@ MAX_GLOSSARY_TERMS_PER_CHUNK = 30
 MAX_GLOSSARY_CONTEXT_CHARS = 1500
 GLOSSARY_CONTEXT_HEADER = "[용어집 - 반드시 지킬 것]"
 TERM_NOT_FOUND_MESSAGE = "용어를 찾을 수 없습니다."
+ACTIVE_TERM_PERMANENT_DELETE_MESSAGE = "활성 용어는 영구 삭제할 수 없습니다. 먼저 비활성화해주세요."
 CANDIDATE_NOT_FOUND_MESSAGE = "후보 용어를 찾을 수 없습니다."
 DUPLICATE_TERM_MESSAGE = "이미 같은 용어가 등록되어 있습니다."
 CONFLICT_TERM_MESSAGE = "같은 원어에 다른 번역어가 이미 등록되어 있습니다."
@@ -174,6 +175,18 @@ class GlossaryService:
         if term is None:
             raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
         return term
+
+    def permanently_delete_term(self, term_id: int) -> None:
+        term = self.repository.get_term(term_id)
+        if term is None:
+            raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
+        if bool(term.is_active):
+            raise GlossaryServiceError(
+                ACTIVE_TERM_PERMANENT_DELETE_MESSAGE,
+                status_code=409,
+            )
+        if not self.repository.permanently_delete_term(term_id):
+            raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
 
     def import_csv_text(self, text: str) -> GlossaryImportResult:
         if not text.strip():

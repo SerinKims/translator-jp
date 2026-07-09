@@ -103,6 +103,37 @@ def test_glossary_api_patch_and_delete_soft_deactivate(db_session: Session) -> N
     assert deleted.json()["is_active"] is False
 
 
+def test_glossary_api_permanently_deletes_only_inactive_terms(
+    db_session: Session,
+) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        client = TestClient(app)
+        created = client.post(
+            "/api/glossary",
+            json={"source_term": "姫様", "target_term": "공주님"},
+        )
+        term_id = created.json()["id"]
+
+        active_delete = client.delete(f"/api/glossary/{term_id}/permanent")
+        still_listed = client.get("/api/glossary")
+        deactivated = client.delete(f"/api/glossary/{term_id}")
+        permanent_delete = client.delete(f"/api/glossary/{term_id}/permanent")
+        listed_after_delete = client.get("/api/glossary")
+        second_delete = client.delete(f"/api/glossary/{term_id}/permanent")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert active_delete.status_code == 409
+    assert still_listed.json()[0]["id"] == term_id
+    assert deactivated.status_code == 200
+    assert permanent_delete.status_code == 204
+    assert permanent_delete.content == b""
+    assert listed_after_delete.json() == []
+    assert second_delete.status_code == 404
+
+
 def test_glossary_api_import_csv_text_body(db_session: Session) -> None:
     app.dependency_overrides[get_db] = _override_db(db_session)
     csv_text = """source_lang,target_lang,source_term,target_term,term_type,priority,is_required,description,aliases

@@ -726,6 +726,17 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 현재 chunk의 `source_text`에 `source_term` 또는 `aliases` 중 하나가 실제로 포함된 항목만 prompt에 삽입한다.
 선별된 항목은 `is_required=true`, `priority` 높은 순, `source_term` 길이 긴 순, `source_term` 오름차순으로 정렬한다.
 
+삭제 정책:
+
+```text
+일반 삭제 요청은 is_active=0으로 바꾸는 비활성화로 처리한다.
+영구 삭제는 이미 비활성화된 항목에만 허용하고 glossary_terms row를 실제로 삭제한다.
+활성 항목의 영구 삭제 요청은 거부한다.
+기존 translation_jobs, translation_chunks, translation_cache는 용어 삭제와 함께 제거하지 않는다.
+```
+
+`glossary_terms`를 참조하는 번역 이력 외래키는 없으며 캐시는 선택된 용어의 hash만 저장하므로, 영구 삭제를 위한 스키마 변경은 필요하지 않다.
+
 ---
 
 ### 6.4.3 term_type 예시

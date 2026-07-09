@@ -34,6 +34,12 @@ export async function deleteGlossaryTerm(id: number): Promise<GlossaryTerm> {
   });
 }
 
+export async function permanentlyDeleteGlossaryTerm(id: number): Promise<void> {
+  return apiRequest<void>(`/api/glossary/${id}/permanent`, {
+    method: "DELETE",
+  });
+}
+
 export async function importGlossary(request: GlossaryImportRequest): Promise<GlossaryImportResponse> {
   return apiRequest<GlossaryImportResponse>("/api/glossary/import", {
     method: "POST",

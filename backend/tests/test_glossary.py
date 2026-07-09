@@ -9,6 +9,7 @@ from app.services.glossary import (
     GlossaryConflictError,
     GlossaryDuplicateError,
     GlossaryService,
+    GlossaryServiceError,
     build_glossary_context,
     check_glossary_violations,
     make_selected_glossary_hash,
@@ -132,6 +133,57 @@ def test_service_deactivates_glossary_term(db_session: Session) -> None:
 
     assert deactivated.is_active == 0
     assert service.list_terms(active_only=True) == []
+
+
+def test_repository_permanently_deletes_glossary_term(db_session: Session) -> None:
+    repository = GlossaryRepository(db_session)
+    created = repository.create_term(
+        source_term="姫様",
+        target_term="공주님",
+        source_lang="ja",
+        target_lang="ko",
+        is_active=False,
+    )
+
+    deleted = repository.permanently_delete_term(created.id)
+
+    assert deleted is True
+    assert repository.get_term(created.id) is None
+
+
+def test_service_permanently_deletes_inactive_glossary_term(db_session: Session) -> None:
+    service = GlossaryService(db_session)
+    created = service.create_term(
+        source_term="姫様",
+        target_term="공주님",
+        source_lang="ja",
+        target_lang="ko",
+        is_active=False,
+    )
+
+    service.permanently_delete_term(created.term.id)
+
+    assert service.repository.get_term(created.term.id) is None
+    assert service.list_terms() == []
+
+
+def test_service_rejects_permanent_delete_for_active_term(db_session: Session) -> None:
+    service = GlossaryService(db_session)
+    created = service.create_term(
+        source_term="姫様",
+        target_term="공주님",
+        source_lang="ja",
+        target_lang="ko",
+    )
+
+    try:
+        service.permanently_delete_term(created.term.id)
+    except GlossaryServiceError as exc:
+        assert exc.status_code == 409
+    else:
+        raise AssertionError("active glossary term was permanently deleted")
+
+    assert service.repository.get_term(created.term.id) is not None
 
 
 def test_csv_import_applies_duplicate_and_conflict_policy(db_session: Session) -> None:

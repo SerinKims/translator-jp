@@ -9,6 +9,7 @@ import {
   importGlossary,
   listGlossary,
   listGlossaryCandidates,
+  permanentlyDeleteGlossaryTerm,
   rejectGlossaryCandidate,
   updateGlossaryTerm,
 } from "@/lib/api/glossaryApi";
@@ -31,36 +32,56 @@ export function useGlossary() {
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["glossary"] });
+  const createTerm = useMutation({
+    mutationFn: (request: GlossaryTermCreateRequest) => createGlossaryTerm(request),
+    onSuccess: invalidate,
+  });
+  const updateTerm = useMutation({
+    mutationFn: ({ id, request }: { id: number; request: GlossaryTermUpdateRequest }) =>
+      updateGlossaryTerm(id, request),
+    onSuccess: invalidate,
+  });
+  const deleteTerm = useMutation({
+    mutationFn: deleteGlossaryTerm,
+    onSuccess: invalidate,
+  });
+  const permanentlyDeleteTerm = useMutation({
+    mutationFn: permanentlyDeleteGlossaryTerm,
+    onSuccess: invalidate,
+  });
+  const importTerms = useMutation({
+    mutationFn: (request: GlossaryImportRequest) => importGlossary(request),
+    onSuccess: invalidate,
+  });
+  const approveCandidate = useMutation({
+    mutationFn: ({ id, request }: { id: number; request: GlossaryCandidateApproveRequest }) =>
+      approveGlossaryCandidate(id, request),
+    onSuccess: invalidate,
+  });
+  const rejectCandidate = useMutation({
+    mutationFn: rejectGlossaryCandidate,
+    onSuccess: invalidate,
+  });
 
   return {
     terms: query.data ?? [],
     candidates: candidatesQuery.data ?? [],
-    error: query.error,
+    error:
+      query.error ??
+      createTerm.error ??
+      updateTerm.error ??
+      deleteTerm.error ??
+      permanentlyDeleteTerm.error ??
+      importTerms.error ??
+      approveCandidate.error ??
+      rejectCandidate.error,
     isLoading: query.isLoading,
-    createTerm: useMutation({
-      mutationFn: (request: GlossaryTermCreateRequest) => createGlossaryTerm(request),
-      onSuccess: invalidate,
-    }),
-    updateTerm: useMutation({
-      mutationFn: ({ id, request }: { id: number; request: GlossaryTermUpdateRequest }) => updateGlossaryTerm(id, request),
-      onSuccess: invalidate,
-    }),
-    deleteTerm: useMutation({
-      mutationFn: deleteGlossaryTerm,
-      onSuccess: invalidate,
-    }),
-    importTerms: useMutation({
-      mutationFn: (request: GlossaryImportRequest) => importGlossary(request),
-      onSuccess: invalidate,
-    }),
-    approveCandidate: useMutation({
-      mutationFn: ({ id, request }: { id: number; request: GlossaryCandidateApproveRequest }) =>
-        approveGlossaryCandidate(id, request),
-      onSuccess: invalidate,
-    }),
-    rejectCandidate: useMutation({
-      mutationFn: rejectGlossaryCandidate,
-      onSuccess: invalidate,
-    }),
+    createTerm,
+    updateTerm,
+    deleteTerm,
+    permanentlyDeleteTerm,
+    importTerms,
+    approveCandidate,
+    rejectCandidate,
   };
 }

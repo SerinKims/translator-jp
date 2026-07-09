@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Eye, EyeOff, Pencil } from "lucide-react";
+import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -57,6 +57,7 @@ export function GlossaryManager({
   error,
   isLoading,
   isMutating,
+  permanentlyDeleteTerm,
   terms,
   updateTerm,
 }: {
@@ -65,11 +66,13 @@ export function GlossaryManager({
   error: unknown;
   isLoading: boolean;
   isMutating: boolean;
+  permanentlyDeleteTerm: (id: number, onSuccess: () => void) => void;
   terms: GlossaryTerm[];
   updateTerm: (id: number, request: Partial<GlossaryTermCreateRequest>) => void;
 }) {
   const [editingTerm, setEditingTerm] = useState<GlossaryTerm | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<GlossaryTerm | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<GlossaryTerm | null>(null);
   const [sourceLang, setSourceLang] = useState<GlossarySourceLanguage>("ja");
   const [sourceTerm, setSourceTerm] = useState("");
   const [targetTerm, setTargetTerm] = useState("");
@@ -203,10 +206,16 @@ export function GlossaryManager({
                             비활성화
                           </Button>
                         ) : (
-                          <Button type="button" size="sm" variant="outline" onClick={() => updateTerm(term.id, { is_active: true })} disabled={isMutating}>
-                            <Eye className="h-4 w-4" />
-                            활성화
-                          </Button>
+                          <>
+                            <Button type="button" size="sm" variant="outline" onClick={() => updateTerm(term.id, { is_active: true })} disabled={isMutating}>
+                              <Eye className="h-4 w-4" />
+                              활성화
+                            </Button>
+                            <Button type="button" size="sm" variant="destructive" onClick={() => setPermanentDeleteTarget(term)} disabled={isMutating}>
+                              <Trash2 className="h-4 w-4" />
+                              영구 삭제
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -308,6 +317,41 @@ export function GlossaryManager({
               }}
             >
               비활성화
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(permanentDeleteTarget)}
+        onOpenChange={(open) => !open && setPermanentDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>용어를 영구 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &quot;{permanentDeleteTarget?.source_term}&quot; 용어가 DB에서 완전히 삭제됩니다.
+              이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isMutating}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isMutating}
+              onClick={() => {
+                if (permanentDeleteTarget) {
+                  const targetId = permanentDeleteTarget.id;
+                  permanentlyDeleteTerm(targetId, () => {
+                    if (editingTerm?.id === targetId) {
+                      resetForm();
+                    }
+                  });
+                }
+                setPermanentDeleteTarget(null);
+              }}
+            >
+              영구 삭제
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

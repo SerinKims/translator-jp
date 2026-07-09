@@ -430,7 +430,23 @@ DELETE /api/glossary/{term_id}
 
 실제 row를 삭제하지 않고 `is_active=false`로 변경한다. 응답은 변경된 용어 객체를 반환한다.
 
-### 7.5 CSV import
+### 7.5 용어집 영구 삭제
+
+```http
+DELETE /api/glossary/{term_id}/permanent
+```
+
+비활성 용어만 `glossary_terms`에서 실제로 삭제한다.
+
+```text
+삭제 성공: 204 No Content
+존재하지 않는 용어: 404 Not Found
+활성 용어 삭제 시도: 409 Conflict
+```
+
+활성 용어는 먼저 `DELETE /api/glossary/{term_id}`로 비활성화해야 한다. 영구 삭제는 복구할 수 없으며, 같은 ID를 다시 삭제하면 `404 Not Found`를 반환한다.
+
+### 7.6 CSV import
 
 ```http
 POST /api/glossary/import
@@ -464,7 +480,7 @@ Response:
 }
 ```
 
-### 7.6 후보 용어
+### 7.7 후보 용어
 
 ```http
 GET /api/glossary/candidates
