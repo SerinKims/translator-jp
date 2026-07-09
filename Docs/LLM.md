@@ -141,6 +141,14 @@ Literal Unicode escape output such as `\u4f5c\u54c1` is restored during
 translation post-processing before saving `translated_text` or returning API
 responses. `raw_model_response` keeps the original model output.
 
+Consecutive Ollama byte fallback tokens such as
+`<0xED><0x88><0x87>마루` are decoded as strict UTF-8 during the same
+post-processing step, producing `툇마루`. Invalid or incomplete byte
+sequences remain unchanged to avoid data loss. The normalized text is used for
+new chunk, page, job, cache, and API results, while `raw_model_response`
+retains the original model output. Existing translation history and cache rows
+are not migrated in bulk.
+
 ## 6. 프롬프트 버전 관리
 
 프롬프트 변경 시 다음을 수행한다.

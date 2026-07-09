@@ -25,6 +25,8 @@ from app.services.glossary import make_selected_glossary_hash
 SOURCE_TEXT = "\u5f7c\u306f\u9759\u304b\u306b\u76ee\u3092\u9589\u3058\u305f\u3002"
 ESCAPED_TITLE = "\\u4f5c\\u54c1\\u30bf\\u30a4\\u30c8\\u30eb"
 RESTORED_TITLE = "\u4f5c\u54c1\u30bf\u30a4\u30c8\u30eb"
+BYTE_TOKEN_TEXT = "<0xED><0x88><0x87>마루"
+RESTORED_BYTE_TOKEN_TEXT = "툇마루"
 
 
 def test_translate_short_text_saves_job_and_chunk(db_session: Session) -> None:
@@ -74,6 +76,64 @@ def test_translate_restores_literal_unicode_escapes_before_saving(
         assert chunks[0].translated_text == RESTORED_TITLE
         assert chunks[0].raw_model_response is not None
         assert ESCAPED_TITLE.replace("\\", "\\\\") in chunks[0].raw_model_response
+
+    asyncio.run(run_test())
+
+
+def test_translate_restores_byte_tokens_before_saving(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        service = TranslationService(
+            db_session,
+            ollama_client=FakeOllamaClient([BYTE_TOKEN_TEXT]),
+        )
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        job = db_session.get(TranslationJob, response.job_id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=response.job_id)
+
+        assert response.translated_text == RESTORED_BYTE_TOKEN_TEXT
+        assert job is not None
+        assert job.translated_text == RESTORED_BYTE_TOKEN_TEXT
+        assert chunks[0].translated_text == RESTORED_BYTE_TOKEN_TEXT
+        assert chunks[0].raw_model_response is not None
+        assert BYTE_TOKEN_TEXT in chunks[0].raw_model_response
+
+    asyncio.run(run_test())
+
+
+def test_translate_restores_multiple_byte_token_characters_in_mixed_text(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        raw_text = "앞 <0xED><0x95><0x9C><0xEA><0xB8><0x80> 뒤"
+        service = TranslationService(
+            db_session,
+            ollama_client=FakeOllamaClient([raw_text]),
+        )
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        assert response.translated_text == "앞 한글 뒤"
+
+    asyncio.run(run_test())
+
+
+def test_translate_preserves_invalid_or_incomplete_byte_tokens(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        raw_text = "invalid <0xED><0x88> incomplete <0xE> malformed <0xGG>"
+        service = TranslationService(
+            db_session,
+            ollama_client=FakeOllamaClient([raw_text]),
+        )
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        assert response.translated_text == raw_text
 
     asyncio.run(run_test())
 
@@ -136,6 +196,46 @@ def test_translate_cache_hit_restores_literal_unicode_escapes(
         assert job is not None
         assert job.translated_text == RESTORED_TITLE
         assert chunks[0].translated_text == RESTORED_TITLE
+
+    asyncio.run(run_test())
+
+
+def test_translate_cache_hit_restores_byte_tokens(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        selected_glossary_hash = make_selected_glossary_hash([])
+        cache_key = build_cache_key(
+            source_text=SOURCE_TEXT,
+            source_lang="ja",
+            target_lang="ko",
+            model_name="gemma4:26b-a4b-it-q4_K_M",
+            prompt_version="translate_ja_ko_v1",
+            style="webnovel",
+            honorific_policy="preserve",
+            preserve_names=True,
+            selected_glossary_hash=selected_glossary_hash,
+        )
+        CacheRepository(db_session).create_cache_entry(
+            cache_key=cache_key,
+            source_text=SOURCE_TEXT,
+            translated_text=BYTE_TOKEN_TEXT,
+            selected_glossary_hash=selected_glossary_hash,
+        )
+        fake_client = FakeOllamaClient(["unused"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+
+        response = await service.translate_text(TranslationRequest(text=SOURCE_TEXT))
+
+        job = db_session.get(TranslationJob, response.job_id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=response.job_id)
+
+        assert response.cache_hit is True
+        assert response.translated_text == RESTORED_BYTE_TOKEN_TEXT
+        assert len(fake_client.calls) == 0
+        assert job is not None
+        assert job.translated_text == RESTORED_BYTE_TOKEN_TEXT
+        assert chunks[0].translated_text == RESTORED_BYTE_TOKEN_TEXT
 
     asyncio.run(run_test())
 

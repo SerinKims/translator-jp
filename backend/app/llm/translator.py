@@ -50,6 +50,8 @@ from app.services.language_detector import (
 MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 PROMPT_VERSION = "translate_ja_ko_v1"
 LITERAL_UNICODE_ESCAPE_RE = re.compile(r"(?:\\u[0-9a-fA-F]{4})+")
+BYTE_TOKEN_SEQUENCE_RE = re.compile(r"(?:<0x[0-9a-fA-F]{2}>)+")
+BYTE_TOKEN_RE = re.compile(r"<0x([0-9a-fA-F]{2})>")
 CHUNK_NOT_FOUND_MESSAGE = "Translation chunk not found."
 CHUNK_RETRY_NOT_FAILED_MESSAGE = "Only failed chunks can be retried."
 CHUNK_RETRY_AMBIGUOUS_MESSAGE = (
@@ -323,7 +325,7 @@ class TranslationService:
         cached = cache_service.get_cached_translation(cache_key=cache_key)
         if cached is not None:
             cache_hit = True
-            translated_text = self._restore_literal_unicode_escapes(cached.translated_text)
+            translated_text = self._normalize_translation_text(cached.translated_text)
             chunk_repository.update_status(
                 job_id=job.id,
                 page_id=page.id,
@@ -634,7 +636,7 @@ class TranslationService:
                 cached = cache_service.get_cached_translation(cache_key=cache_key)
                 if cached is not None:
                     cache_hit = True
-                    translated_text = self._restore_literal_unicode_escapes(cached.translated_text)
+                    translated_text = self._normalize_translation_text(cached.translated_text)
                     chunk_repository.update_status(
                         job_id=job.id,
                         page_id=page.id,
@@ -1005,8 +1007,22 @@ class TranslationService:
         text = raw_text.strip()
         for prefix in ("번역문:", "번역:", "Translation:", "Translated text:"):
             if text.startswith(prefix):
-                return self._restore_literal_unicode_escapes(text[len(prefix) :].strip())
-        return self._restore_literal_unicode_escapes(text)
+                return self._normalize_translation_text(text[len(prefix) :].strip())
+        return self._normalize_translation_text(text)
+
+    def _normalize_translation_text(self, text: str) -> str:
+        text = self._restore_literal_unicode_escapes(text)
+        if "<0x" not in text:
+            return text
+
+        def restore_match(match: re.Match[str]) -> str:
+            encoded = bytes(int(hex_byte, 16) for hex_byte in BYTE_TOKEN_RE.findall(match.group(0)))
+            try:
+                return encoded.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                return match.group(0)
+
+        return BYTE_TOKEN_SEQUENCE_RE.sub(restore_match, text)
 
     def _restore_literal_unicode_escapes(self, text: str) -> str:
         if "\\u" not in text:
