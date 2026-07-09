@@ -79,6 +79,43 @@ def test_translate_next_page_translates_only_requested_page(db_session: Session)
     assert [chunk.page_id for chunk in chunks] == [pages[0].id, pages[1].id]
 
 
+def test_translate_current_page_merges_only_that_pages_chunks(
+    db_session: Session,
+) -> None:
+    text = "\u77ed\u3044[newpage]" + "\u3044" * 6 + "[newpage]\u5f8c"
+    fake_client = FakeOllamaClient(["first page", "page1 chunk0", "page1 chunk1"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+        max_chars_per_chunk=5,
+    )
+
+    try:
+        client = TestClient(app)
+        first = client.post("/api/translate", json={"text": text, "use_cache": False})
+        second = client.post(
+            f"/api/translations/{first.json()['job_id']}/pages/1/translate",
+            json={"use_cache": False},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    payload = second.json()
+    assert payload["current_page_index"] == 1
+    assert payload["total_pages"] == 3
+    assert payload["translated_text"] == "page1 chunk0\n\npage1 chunk1"
+    assert [chunk["index"] for chunk in payload["chunks"]] == [0, 1]
+
+    pages = PageRepository(db_session).list_pages(job_id=payload["job_id"])
+    assert [page.status for page in pages] == ["completed", "completed", "pending"]
+    assert pages[0].translated_text == "first page"
+    assert pages[1].translated_text == "page1 chunk0\n\npage1 chunk1"
+    assert pages[2].translated_text is None
+
+
 def test_translate_reuses_completed_page_from_database(db_session: Session) -> None:
     fake_client = FakeOllamaClient(["첫 페이지"])
     app.dependency_overrides[get_db] = _override_db(db_session)

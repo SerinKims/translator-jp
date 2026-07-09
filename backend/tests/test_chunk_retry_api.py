@@ -61,6 +61,7 @@ def test_retry_failed_chunk_success_updates_counts_and_retry_count(
     assert page.status == "completed"
     assert page.completed_chunks == 2
     assert page.failed_chunks == 0
+    assert page.translated_text == "completed translation\n\nretried translation"
     assert job.status == "completed"
     assert job.completed_chunks == 2
     assert job.failed_chunks == 0

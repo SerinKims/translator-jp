@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./translation.db"
 
     ollama_model_name: str = "gemma4:26b-a4b-it-q4_K_M"
-    ollama_timeout_seconds: float = 120.0
+    ollama_timeout_seconds: float = 300.0
     ollama_health_timeout_seconds: float = 3.0
 
-    max_chars_per_chunk: int = 1800
+    max_chars_per_chunk: int = 1000
     chunk_overlap_paragraphs: int = 1
     prompt_version: str = "translate_ja_ko_v1"
 

@@ -589,7 +589,6 @@ class TranslationService:
         )
         page_repository.update_page(page.id, status="running", total_chunks=len(chunks))
 
-        translated_chunks: list[tuple[int, str]] = []
         chunk_responses: list[TranslationChunkResponse] = []
         failed_messages: list[str] = []
         cache_hit = False
@@ -644,7 +643,6 @@ class TranslationService:
                         translated_text=translated_text,
                         elapsed_ms=0,
                     )
-                    translated_chunks.append((chunk["index"], translated_text))
                     chunk_responses.append(
                         TranslationChunkResponse(
                             index=chunk["index"],
@@ -699,7 +697,6 @@ class TranslationService:
                         preserve_names=run_options.preserve_names,
                         selected_glossary_hash=selected_glossary_hash,
                     )
-                translated_chunks.append((chunk["index"], translated_text))
                 chunk_responses.append(
                     TranslationChunkResponse(
                         index=chunk["index"],
@@ -728,9 +725,15 @@ class TranslationService:
                     )
                 )
 
-        translated_text = self._merge_translated_chunks(translated_chunks)
-        completed_count = len(translated_chunks)
-        failed_count = len(failed_messages)
+        stored_chunks = chunk_repository.list_chunks(job_id=job.id, page_id=page.id)
+        completed_translations = [
+            (stored_chunk.chunk_index, stored_chunk.translated_text)
+            for stored_chunk in stored_chunks
+            if stored_chunk.status == "completed" and stored_chunk.translated_text is not None
+        ]
+        translated_text = self._merge_translated_chunks(completed_translations)
+        completed_count = len(completed_translations)
+        failed_count = sum(1 for stored_chunk in stored_chunks if stored_chunk.status == "failed")
         page_repository.update_page(
             page.id,
             translated_text=translated_text,

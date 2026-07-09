@@ -396,6 +396,50 @@ def test_translate_existing_pixiv_job_reuses_job_id(db_session: Session) -> None
     asyncio.run(run_test())
 
 
+def test_translate_existing_pixiv_job_merges_page_chunks(db_session: Session) -> None:
+    async def run_test() -> None:
+        repository = TranslationRepository(db_session)
+        job = repository.create_job(
+            source_site="pixiv",
+            source_url="https://www.pixiv.net/novel/show.php?id=12345678",
+            source_title="title",
+            source_author="author",
+            source_work_id="12345678",
+            original_text="\u3042" * 6,
+            status="fetched",
+        )
+        service = TranslationService(
+            db_session,
+            ollama_client=FakeOllamaClient(["pixiv chunk0", "pixiv chunk1"]),
+            max_chars_per_chunk=5,
+        )
+
+        response = await service.translate_job(
+            job.id,
+            source_lang="ja",
+            target_lang="ko",
+            style="webnovel",
+            honorific_policy="preserve",
+            preserve_names=True,
+            use_glossary=True,
+            use_cache=False,
+            think=False,
+            options=None,
+        )
+
+        saved = db_session.get(TranslationJob, job.id)
+        chunks = ChunkRepository(db_session).list_chunks(job_id=job.id)
+
+        assert response.job_id == job.id
+        assert response.source_type == "pixiv"
+        assert response.translated_text == "pixiv chunk0\n\npixiv chunk1"
+        assert saved is not None
+        assert saved.translated_text == "pixiv chunk0\n\npixiv chunk1"
+        assert [chunk.translated_text for chunk in chunks] == ["pixiv chunk0", "pixiv chunk1"]
+
+    asyncio.run(run_test())
+
+
 def test_translate_rejects_empty_text(db_session: Session) -> None:
     async def run_test() -> None:
         service = TranslationService(db_session, ollama_client=FakeOllamaClient(["unused"]))
