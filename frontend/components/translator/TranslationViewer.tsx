@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenText, Clipboard, Languages } from "lucide-react";
+import { BookOpenText, Clipboard, Languages, RotateCw } from "lucide-react";
 import { useState } from "react";
 
 import { PageNavigator, PageStepButtons } from "@/components/translator/PageNavigator";
@@ -18,9 +18,11 @@ export function TranslationViewer({
   errorMessage,
   isTranslating,
   onPageChange,
+  onRetryChunk,
   onTranslateAllText,
   onTranslateAllUrl,
   onTranslateCurrent,
+  retryingChunkKey,
   setViewerMode,
   viewerMode,
 }: {
@@ -29,15 +31,21 @@ export function TranslationViewer({
   errorMessage: string | null;
   isTranslating: boolean;
   onPageChange: (index: number) => void;
+  onRetryChunk: (pageIndex: number, chunkIndex: number) => void;
   onTranslateAllText: (request: TranslationRequest) => void;
   onTranslateAllUrl: (request: UrlTranslationRequest) => void;
   onTranslateCurrent: (request: ReturnType<typeof createPageTranslateRequest>) => void;
+  retryingChunkKey: string | null;
   setViewerMode: (mode: ViewerMode) => void;
   viewerMode: ViewerMode;
 }) {
   const [copyLabel, setCopyLabel] = useState("복사");
   const activePage = currentJob?.pages[currentPageIndex] ?? null;
   const pageCount = currentJob?.pages.length ?? 0;
+  const failedChunks =
+    currentJob?.chunks.filter(
+      (chunk) => chunk.pageIndex === currentPageIndex && chunk.status === "failed",
+    ) ?? [];
 
   const copyTranslation = async () => {
     if (!activePage?.translatedText) {
@@ -153,6 +161,44 @@ export function TranslationViewer({
                 {activePage?.translatedText || "아직 이 page의 번역 결과가 없습니다. 현재 page 번역 또는 전체 번역을 실행하세요."}
               </ViewerPanel>
             </div>
+            {failedChunks.length > 0 ? (
+              <section className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4">
+                <div>
+                  <h3 className="font-semibold text-destructive">실패 chunk</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    현재 페이지에서 실패한 chunk만 개별 재시도할 수 있습니다.
+                  </p>
+                </div>
+                {failedChunks.map((chunk) => {
+                  const key = `${currentPageIndex}:${chunk.index}`;
+                  const retrying = retryingChunkKey === key;
+                  return (
+                    <div key={chunk.id} className="rounded-md border bg-background p-3 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="destructive">Chunk {chunk.index + 1}</Badge>
+                            <span className="text-muted-foreground">재시도 {chunk.retryCount}회</span>
+                          </div>
+                          <p className="whitespace-pre-wrap">{chunk.sourceText.slice(0, 240)}</p>
+                          {chunk.errorMessage ? <p className="text-destructive">{chunk.errorMessage}</p> : null}
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isTranslating || retrying}
+                          onClick={() => onRetryChunk(currentPageIndex, chunk.index)}
+                        >
+                          <RotateCw className={retrying ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                          Chunk {chunk.index + 1} {retrying ? "재시도 중" : "재시도"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            ) : null}
             <div className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm text-muted-foreground">page {currentPageIndex + 1} / {pageCount}</span>
               <PageStepButtons currentPageIndex={currentPageIndex} onPageChange={onPageChange} pageCount={pageCount} />

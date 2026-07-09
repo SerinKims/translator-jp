@@ -114,6 +114,18 @@ export interface TranslationPage {
   errorMessage?: string | null;
 }
 
+export interface TranslationChunk {
+  id: number;
+  pageId: number;
+  pageIndex: number | null;
+  index: number;
+  sourceText: string;
+  translatedText: string;
+  status: string;
+  retryCount: number;
+  errorMessage: string | null;
+}
+
 export interface TranslationJob {
   id: string;
   jobId: number;
@@ -131,6 +143,7 @@ export interface TranslationJob {
   promptVersion: string;
   options: TranslationOptions;
   pages: TranslationPage[];
+  chunks: TranslationChunk[];
   currentPageIndex: number;
   status: TranslationStatus;
   sourcePreview?: string;

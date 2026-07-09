@@ -17,6 +17,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +32,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/api/client";
 import type {
+  GlossaryCandidate,
+  GlossaryCandidateApproveRequest,
   GlossaryImportRequest,
   GlossaryImportResponse,
   GlossarySourceLanguage,
@@ -54,17 +64,23 @@ const sourceLanguageOptions = Object.keys(sourceLanguageLabels) as GlossarySourc
 const termTypeOptions = Object.keys(termTypeLabels) as GlossaryTermType[];
 
 export function GlossaryManager({
+  approveCandidate,
+  candidates,
   createTerm,
   deleteTerm,
   error,
   importTerms,
   isImporting,
+  isCandidatesLoading,
   isLoading,
   isMutating,
   permanentlyDeleteTerm,
+  rejectCandidate,
   terms,
   updateTerm,
 }: {
+  approveCandidate: (id: number, request: GlossaryCandidateApproveRequest) => void;
+  candidates: GlossaryCandidate[];
   createTerm: (request: GlossaryTermCreateRequest) => void;
   deleteTerm: (id: number) => void;
   error: unknown;
@@ -73,9 +89,11 @@ export function GlossaryManager({
     options: { onSuccess: (result: GlossaryImportResponse) => void },
   ) => void;
   isImporting: boolean;
+  isCandidatesLoading: boolean;
   isLoading: boolean;
   isMutating: boolean;
   permanentlyDeleteTerm: (id: number, onSuccess: () => void) => void;
+  rejectCandidate: (id: number) => void;
   terms: GlossaryTerm[];
   updateTerm: (id: number, request: Partial<GlossaryTermCreateRequest>) => void;
 }) {
@@ -83,6 +101,14 @@ export function GlossaryManager({
   const [editingTerm, setEditingTerm] = useState<GlossaryTerm | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<GlossaryTerm | null>(null);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<GlossaryTerm | null>(null);
+  const [approvalTarget, setApprovalTarget] = useState<GlossaryCandidate | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<GlossaryCandidate | null>(null);
+  const [candidateTermType, setCandidateTermType] = useState<GlossaryTermType>("common");
+  const [candidateDescription, setCandidateDescription] = useState("");
+  const [candidateAliases, setCandidateAliases] = useState("");
+  const [candidatePriority, setCandidatePriority] = useState(80);
+  const [candidateIsRequired, setCandidateIsRequired] = useState(true);
+  const [candidateIsCaseSensitive, setCandidateIsCaseSensitive] = useState(false);
   const [sourceLang, setSourceLang] = useState<GlossarySourceLanguage>("ja");
   const [sourceTerm, setSourceTerm] = useState("");
   const [targetTerm, setTargetTerm] = useState("");
@@ -98,6 +124,32 @@ export function GlossaryManager({
   const sortedTerms = terms
     .slice()
     .sort((a, b) => b.priority - a.priority || a.source_term.localeCompare(b.source_term));
+
+  const openApproval = (candidate: GlossaryCandidate) => {
+    setApprovalTarget(candidate);
+    setCandidateTermType("common");
+    setCandidateDescription("");
+    setCandidateAliases("");
+    setCandidatePriority(80);
+    setCandidateIsRequired(true);
+    setCandidateIsCaseSensitive(false);
+  };
+
+  const submitApproval = () => {
+    if (!approvalTarget) {
+      return;
+    }
+    approveCandidate(approvalTarget.id, {
+      glossary_set_id: null,
+      term_type: candidateTermType,
+      description: candidateDescription.trim() || null,
+      aliases: parseAliases(candidateAliases),
+      priority: candidatePriority,
+      is_required: candidateIsRequired,
+      is_case_sensitive: candidateIsCaseSensitive,
+    });
+    setApprovalTarget(null);
+  };
 
   const startEdit = (term: GlossaryTerm) => {
     setEditingTerm(term);
@@ -370,6 +422,115 @@ export function GlossaryManager({
         </CardContent>
       </Card>
 
+      <Card className="xl:col-span-2">
+        <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+          <CardTitle>용어집 후보</CardTitle>
+          <Badge variant="secondary">{candidates.length}개 대기</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isCandidatesLoading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">후보를 불러오는 중입니다.</p>
+          ) : candidates.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">승인 대기 중인 후보가 없습니다.</p>
+          ) : (
+            candidates.map((candidate) => (
+              <article key={candidate.id} className="rounded-md border p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 space-y-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{sourceLanguageLabels[candidate.source_lang]}</Badge>
+                      <strong>{candidate.source_term}</strong>
+                      <span className="text-muted-foreground">→</span>
+                      <strong>{candidate.suggested_target_term}</strong>
+                    </div>
+                    <CandidateContext label="원문 문맥" value={candidate.source_text} />
+                    <CandidateContext label="모델 번역" value={candidate.model_translation} />
+                    <CandidateContext label="사용자 교정" value={candidate.user_corrected_translation} />
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button type="button" size="sm" onClick={() => openApproval(candidate)} disabled={isMutating}>
+                      승인 검토
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setRejectTarget(candidate)} disabled={isMutating}>
+                      거절
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={Boolean(approvalTarget)} onOpenChange={(open) => !open && setApprovalTarget(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>용어집 후보 승인</DialogTitle>
+            <DialogDescription>원어와 추천 번역어를 확인하고 적용 속성을 지정합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <LabeledField label="원문 용어">
+              <Input value={approvalTarget?.source_term ?? ""} readOnly />
+            </LabeledField>
+            <LabeledField label="추천 번역어">
+              <Input value={approvalTarget?.suggested_target_term ?? ""} readOnly />
+            </LabeledField>
+            <LabeledField label="후보 유형">
+              <Select value={candidateTermType} onValueChange={(value) => setCandidateTermType(value as GlossaryTermType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {termTypeOptions.map((value) => (
+                    <SelectItem key={value} value={value}>{termTypeLabels[value]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </LabeledField>
+            <LabeledField label="설명">
+              <Textarea value={candidateDescription} onChange={(event) => setCandidateDescription(event.target.value)} />
+            </LabeledField>
+            <LabeledField label="별칭">
+              <Textarea value={candidateAliases} onChange={(event) => setCandidateAliases(event.target.value)} />
+            </LabeledField>
+            <LabeledField label="후보 우선순위">
+              <Input type="number" value={candidatePriority} onChange={(event) => setCandidatePriority(Number(event.target.value))} />
+            </LabeledField>
+            <ToggleField label="필수 적용" checked={candidateIsRequired} onCheckedChange={setCandidateIsRequired} disabled={isMutating} />
+            <ToggleField label="대소문자 구분" checked={candidateIsCaseSensitive} onCheckedChange={setCandidateIsCaseSensitive} disabled={isMutating} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setApprovalTarget(null)}>취소</Button>
+            <Button type="button" onClick={submitApproval} disabled={isMutating}>후보 승인</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(rejectTarget)} onOpenChange={(open) => !open && setRejectTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>용어집 후보를 거절할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &quot;{rejectTarget?.source_term}&quot; 후보는 용어집에 등록되지 않습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isMutating}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isMutating}
+              onClick={() => {
+                if (rejectTarget) {
+                  rejectCandidate(rejectTarget.id);
+                }
+                setRejectTarget(null);
+              }}
+            >
+              후보 거절
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={Boolean(deactivateTarget)} onOpenChange={(open) => !open && setDeactivateTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -426,6 +587,15 @@ export function GlossaryManager({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function CandidateContext({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <p className="mt-1 whitespace-pre-wrap">{value}</p>
     </div>
   );
 }

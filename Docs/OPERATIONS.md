@@ -1,5 +1,18 @@
 # OPERATIONS
 
+## 2026-07-09 Frontend Health Check Policy
+
+- Frontend requests `GET /api/health` once when the application starts.
+- The header summarizes the result as checking, healthy, degraded, or Backend
+  unreachable.
+- Selecting the header badge opens the settings status card.
+- The settings card shows Backend connectivity, Ollama, database, model, and
+  the optional server message.
+- Health is refreshed only through the manual refresh button. Automatic polling
+  and window-focus refresh are disabled to avoid repeated Ollama model checks.
+- HTTP/network failure is displayed separately from component-level health
+  errors returned by the Backend.
+
 ## 1. Health Check
 
 `GET /api/health`는 다음 상태를 확인한다.

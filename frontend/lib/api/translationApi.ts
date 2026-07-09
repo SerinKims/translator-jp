@@ -17,6 +17,7 @@ import type {
 } from "@/types/translation";
 import type {
   TranslationDetailApiResponse,
+  TranslationChunkHistoryApiItem,
   TranslationHistoryApiItem,
   TranslationPageHistoryApiItem,
 } from "@/types/history";
@@ -105,10 +106,17 @@ export async function translateAll(request: TranslationRequest | UrlTranslationR
   return translateText({ ...request, translate_scope: "all_pages" });
 }
 
-export async function retryFailedChunk(jobId: number, chunkIndex: number): Promise<TranslationApiResult> {
-  const response = await apiRequest<TranslationResponse>(`/api/translations/${jobId}/chunks/${chunkIndex}/retry`, {
+export async function retryFailedChunk(
+  jobId: number,
+  pageIndex: number,
+  chunkIndex: number,
+): Promise<TranslationApiResult> {
+  const response = await apiRequest<TranslationResponse>(
+    `/api/translations/${jobId}/pages/${pageIndex}/chunks/${chunkIndex}/retry`,
+    {
     method: "POST",
-  });
+    },
+  );
   return responseToResult(response, {
     inputMode: "text",
     sourceText: "",
@@ -146,6 +154,7 @@ export function createPendingJobFromText(input: {
     promptVersion: input.options.promptVersion ?? "auto",
     options: input.options,
     pages,
+    chunks: [],
     currentPageIndex: 0,
     status: "ready",
     sourcePreview: pages[0]?.sourceText.slice(0, 160) ?? "",
@@ -184,6 +193,7 @@ export function createPendingJobFromSource(input: {
     promptVersion: input.options.promptVersion ?? "auto",
     options: input.options,
     pages,
+    chunks: [],
     currentPageIndex: 0,
     status: "fetched",
     sourcePreview: pages[0]?.sourceText.slice(0, 160) ?? "",
@@ -266,6 +276,7 @@ export function detailToJob(detail: TranslationDetailApiResponse, fallback?: Par
     promptVersion: detail.prompt_version,
     options,
     pages,
+    chunks: detail.chunks.map(apiChunkToChunk),
     currentPageIndex: clampIndex(fallback?.currentPageIndex ?? 0, pages.length),
     status: normalizeTranslationStatus(detail.status, translatedCount, pages.length),
     sourcePreview: detail.source_preview,
@@ -302,6 +313,7 @@ export function historyItemToJob(item: TranslationHistoryApiItem, fallback?: Par
     promptVersion: item.prompt_version,
     options: parseOptions(item, fallback?.options),
     pages: nowPages,
+    chunks: fallback?.chunks ?? [],
     currentPageIndex: 0,
     status: normalizeTranslationStatus(item.status, item.completed_chunks, item.total_chunks),
     sourcePreview: item.source_preview,
@@ -339,6 +351,7 @@ function fallbackResponseToJob(
     promptVersion: response.prompt_version,
     options: { ...fallback.options, promptVersion: response.prompt_version },
     pages,
+    chunks: [],
     currentPageIndex: response.current_page_index,
     status: response.translated_text ? "completed" : "ready",
     sourcePreview: pages[0]?.sourceText.slice(0, 160) ?? "",
@@ -383,6 +396,20 @@ function apiPageToPage(page: TranslationPageHistoryApiItem): TranslationPage {
     completedChunks: page.completed_chunks,
     failedChunks: page.failed_chunks,
     errorMessage: page.error_message,
+  };
+}
+
+function apiChunkToChunk(chunk: TranslationChunkHistoryApiItem) {
+  return {
+    id: chunk.id,
+    pageId: chunk.page_id,
+    pageIndex: chunk.page_index,
+    index: chunk.chunk_index,
+    sourceText: chunk.source_text,
+    translatedText: chunk.translated_text ?? "",
+    status: chunk.status,
+    retryCount: chunk.retry_count,
+    errorMessage: chunk.error_message,
   };
 }
 

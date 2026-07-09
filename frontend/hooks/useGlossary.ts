@@ -68,6 +68,7 @@ export function useGlossary() {
     candidates: candidatesQuery.data ?? [],
     error:
       query.error ??
+      candidatesQuery.error ??
       createTerm.error ??
       updateTerm.error ??
       deleteTerm.error ??
@@ -76,6 +77,7 @@ export function useGlossary() {
       approveCandidate.error ??
       rejectCandidate.error,
     isLoading: query.isLoading,
+    isCandidatesLoading: candidatesQuery.isLoading,
     createTerm,
     updateTerm,
     deleteTerm,

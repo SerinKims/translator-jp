@@ -71,6 +71,26 @@ async def retry_chunk(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
+@router.post(
+    "/{job_id}/pages/{page_index}/chunks/{chunk_index}/retry",
+    response_model=TranslationResponse,
+)
+async def retry_page_chunk(
+    job_id: int,
+    page_index: int,
+    chunk_index: int,
+    service: Annotated[TranslationService, Depends(get_translation_service)],
+) -> TranslationResponse:
+    try:
+        return await service.retry_failed_chunk(
+            job_id,
+            chunk_index,
+            page_index=page_index,
+        )
+    except TranslationServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
 @router.post("/{job_id}/pages/{page_index}/translate", response_model=TranslationResponse)
 async def translate_page(
     job_id: int,

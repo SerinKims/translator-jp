@@ -241,7 +241,13 @@ class TranslationService:
 
         return await self._translate_job(job=job, run_options=run_options)
 
-    async def retry_failed_chunk(self, job_id: int, chunk_index: int) -> TranslationResponse:
+    async def retry_failed_chunk(
+        self,
+        job_id: int,
+        chunk_index: int,
+        *,
+        page_index: int | None = None,
+    ) -> TranslationResponse:
         started_at = time.perf_counter()
         translation_repository = TranslationRepository(self.db)
         chunk_repository = ChunkRepository(self.db)
@@ -252,9 +258,18 @@ class TranslationService:
         if job is None:
             raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
 
+        page = None
+        if page_index is not None:
+            page = page_repository.get_page(job_id=job.id, page_index=page_index)
+            if page is None:
+                raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
         matching_chunks = [
             chunk
-            for chunk in chunk_repository.list_chunks(job_id=job.id)
+            for chunk in chunk_repository.list_chunks(
+                job_id=job.id,
+                page_id=page.id if page is not None else None,
+            )
             if chunk.chunk_index == chunk_index
         ]
         if not matching_chunks:
@@ -267,7 +282,7 @@ class TranslationService:
             raise TranslationServiceError(CHUNK_RETRY_AMBIGUOUS_MESSAGE, status_code=409)
 
         chunk = failed_chunks[0]
-        page = page_repository.get_page_by_id(chunk.page_id)
+        page = page or page_repository.get_page_by_id(chunk.page_id)
         if page is None:
             raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
 

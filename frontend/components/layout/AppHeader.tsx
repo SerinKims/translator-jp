@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AppSection } from "@/components/layout/AppSidebar";
 import type { InputMode } from "@/types/translation";
+import type { HealthState } from "@/types/health";
 
 const sectionText: Record<AppSection, { title: string; desc: string }> = {
   translate: {
@@ -31,6 +32,8 @@ const sectionText: Record<AppSection, { title: string; desc: string }> = {
 export function AppHeader({
   activeSection,
   inputMode,
+  healthState,
+  onOpenHealthDetails,
   pageCount,
   currentPageIndex,
   progress,
@@ -38,6 +41,8 @@ export function AppHeader({
 }: {
   activeSection: AppSection;
   inputMode: InputMode;
+  healthState: HealthState;
+  onOpenHealthDetails: () => void;
   pageCount: number;
   currentPageIndex: number;
   progress: number;
@@ -52,6 +57,9 @@ export function AppHeader({
       <div>
         <h1 className="text-3xl font-bold tracking-normal">{text.title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{text.desc}</p>
+        <button type="button" className="mt-3" onClick={onOpenHealthDetails}>
+          <Badge variant={healthBadgeVariant(healthState)}>{healthLabel(healthState)}</Badge>
+        </button>
       </div>
 
       <Card className="w-full shadow-sm xl:w-80">
@@ -77,4 +85,18 @@ export function AppHeader({
       </Card>
     </header>
   );
+}
+
+function healthLabel(state: HealthState): string {
+  if (state === "healthy") return "시스템 정상";
+  if (state === "degraded") return "시스템 점검 필요";
+  if (state === "unreachable") return "Backend 연결 실패";
+  return "시스템 확인 중";
+}
+
+function healthBadgeVariant(state: HealthState): "success" | "warning" | "destructive" | "secondary" {
+  if (state === "healthy") return "success";
+  if (state === "degraded") return "warning";
+  if (state === "unreachable") return "destructive";
+  return "secondary";
 }

@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { GlossaryManager } from "@/components/glossary/GlossaryManager";
 import { ApiError } from "@/lib/api/client";
 import type {
+  GlossaryCandidate,
+  GlossaryCandidateApproveRequest,
   GlossaryImportRequest,
   GlossaryImportResponse,
   GlossaryTerm,
@@ -32,32 +34,101 @@ const existingTerm: GlossaryTerm = {
   updated_at: "2026-07-09T00:00:00",
 };
 
+const candidate: GlossaryCandidate = {
+  id: 9,
+  source_lang: "ja",
+  target_lang: "ko",
+  source_term: "王都",
+  suggested_target_term: "왕도",
+  source_text: "王都の空を見上げた。",
+  model_translation: "수도의 하늘을 올려다보았다.",
+  user_corrected_translation: "왕도의 하늘을 올려다보았다.",
+  status: "pending",
+  created_at: "2026-07-09T00:00:00",
+  updated_at: "2026-07-09T00:00:00",
+};
+
 function renderManager({
+  approveCandidate = vi.fn(),
+  candidates = [],
   importTerms = vi.fn(),
   error = null,
   isImporting = false,
   terms = [],
+  rejectCandidate = vi.fn(),
 }: {
+  approveCandidate?: (id: number, request: GlossaryCandidateApproveRequest) => void;
+  candidates?: GlossaryCandidate[];
   importTerms?: (request: GlossaryImportRequest, options: ImportOptions) => void;
   error?: unknown;
   isImporting?: boolean;
   terms?: GlossaryTerm[];
+  rejectCandidate?: (id: number) => void;
 } = {}) {
   render(
     <GlossaryManager
       createTerm={vi.fn()}
+      approveCandidate={approveCandidate}
+      candidates={candidates}
       deleteTerm={vi.fn()}
       error={error}
       importTerms={importTerms}
       isImporting={isImporting}
+      isCandidatesLoading={false}
       isLoading={false}
       isMutating={isImporting}
       permanentlyDeleteTerm={vi.fn()}
+      rejectCandidate={rejectCandidate}
       terms={terms}
       updateTerm={vi.fn()}
     />,
   );
 }
+
+describe("GlossaryManager candidates", () => {
+  it("approves a candidate with edited glossary settings", async () => {
+    const user = userEvent.setup();
+    const approveCandidate = vi.fn();
+    renderManager({ approveCandidate, candidates: [candidate] });
+
+    expect(screen.getByText("王都の空を見上げた。")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "승인 검토" }));
+    await user.clear(screen.getByLabelText("후보 우선순위"));
+    await user.type(screen.getByLabelText("후보 우선순위"), "90");
+    await user.click(screen.getByRole("button", { name: "후보 승인" }));
+
+    expect(approveCandidate).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        term_type: "common",
+        priority: 90,
+        is_required: true,
+        is_case_sensitive: false,
+      }),
+    );
+  });
+
+  it("rejects a candidate after confirmation", async () => {
+    const user = userEvent.setup();
+    const rejectCandidate = vi.fn();
+    renderManager({ candidates: [candidate], rejectCandidate });
+
+    await user.click(screen.getByRole("button", { name: "거절" }));
+    await user.click(screen.getByRole("button", { name: "후보 거절" }));
+
+    expect(rejectCandidate).toHaveBeenCalledWith(9);
+  });
+
+  it("keeps a pending candidate visible when approval conflicts", () => {
+    renderManager({
+      candidates: [candidate],
+      error: new ApiError("같은 원어에 다른 번역어가 이미 등록되어 있습니다.", 409),
+    });
+
+    expect(screen.getByText("王都の空を見上げた。")).toBeInTheDocument();
+    expect(screen.getByText("같은 원어에 다른 번역어가 이미 등록되어 있습니다.")).toBeInTheDocument();
+  });
+});
 
 function csvFile(text: string, readText: () => Promise<string> = () => Promise.resolve(text)): File {
   const file = new File([text], "glossary.csv", { type: "text/csv" });

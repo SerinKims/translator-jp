@@ -1,5 +1,24 @@
 # API Specification
 
+## 2026-07-09 Page-Scoped Chunk Retry Contract
+
+Frontend retry actions use the page-scoped endpoint:
+
+```http
+POST /api/translations/{job_id}/pages/{page_index}/chunks/{chunk_index}/retry
+```
+
+- The endpoint selects the chunk by job, page, and chunk index, so equal chunk
+  indexes on different pages are not ambiguous.
+- Only chunks in `failed` status can be retried.
+- A missing job, page, or chunk returns `404`.
+- A chunk that is not failed returns `400`.
+- The response uses the existing `TranslationResponse` shape and identifies the
+  retried page through `current_page_index`.
+- `POST /api/translations/{job_id}/chunks/{chunk_index}/retry` remains available
+  for backward compatibility. It may return `409` when multiple failed chunks
+  in the job share the same chunk index.
+
 ## 2026-07-06 Glossary DB Field Contract
 
 `POST /api/glossary`, `PATCH /api/glossary/{term_id}`, and

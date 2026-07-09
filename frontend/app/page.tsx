@@ -7,9 +7,11 @@ import { TranslationHistory } from "@/components/history/TranslationHistory";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppSection, AppSidebar } from "@/components/layout/AppSidebar";
 import { MODEL_SETTINGS_STORAGE_KEY, ModelSettings } from "@/components/settings/ModelSettings";
+import { HealthStatusCard } from "@/components/settings/HealthStatusCard";
 import { TranslatePanel } from "@/components/translator/TranslatePanel";
 import { TranslationViewer } from "@/components/translator/TranslationViewer";
 import { useGlossary } from "@/hooks/useGlossary";
+import { useHealth } from "@/hooks/useHealth";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useTranslationHistory } from "@/hooks/useTranslationHistory";
 import { DEFAULT_MODEL_SETTINGS, type InputMode, type ModelSettings as ModelSettingsType } from "@/types/translation";
@@ -21,6 +23,7 @@ export default function Home() {
   const translation = useTranslation();
   const history = useTranslationHistory();
   const glossary = useGlossary();
+  const health = useHealth();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -55,6 +58,8 @@ export default function Home() {
         <AppHeader
           activeSection={activeSection}
           inputMode={inputMode}
+          healthState={health.state}
+          onOpenHealthDetails={() => setActiveSection("settings")}
           pageCount={translation.pageCount}
           currentPageIndex={translation.currentPageIndex}
           progress={translation.progress}
@@ -85,9 +90,11 @@ export default function Home() {
             errorMessage={translation.errorMessage}
             isTranslating={translation.isTranslating}
             onPageChange={translation.setCurrentPageIndex}
+            onRetryChunk={translation.retryFailedChunk}
             onTranslateAllText={translation.translateTextAll}
             onTranslateAllUrl={translation.translateUrlAll}
             onTranslateCurrent={translation.translateCurrentPage}
+            retryingChunkKey={translation.retryingChunkKey}
             setViewerMode={translation.setViewerMode}
             viewerMode={translation.viewerMode}
           />
@@ -115,21 +122,35 @@ export default function Home() {
         {activeSection === "glossary" && (
           <GlossaryManager
             terms={glossary.terms}
+            candidates={glossary.candidates}
             error={glossary.error}
             importTerms={(request, options) => glossary.importTerms.mutate(request, options)}
             isImporting={glossary.importTerms.isPending}
+            isCandidatesLoading={glossary.isCandidatesLoading}
             isLoading={glossary.isLoading}
             isMutating={isGlossaryMutating}
             createTerm={(request) => glossary.createTerm.mutate(request)}
+            approveCandidate={(id, request) => glossary.approveCandidate.mutate({ id, request })}
             updateTerm={(id, request) => glossary.updateTerm.mutate({ id, request })}
             deleteTerm={(id) => glossary.deleteTerm.mutate(id)}
             permanentlyDeleteTerm={(id, onSuccess) =>
               glossary.permanentlyDeleteTerm.mutate(id, { onSuccess })
             }
+            rejectCandidate={(id) => glossary.rejectCandidate.mutate(id)}
           />
         )}
 
-        {activeSection === "settings" && <ModelSettings settings={modelSettings} onSettingsChange={setModelSettings} />}
+        {activeSection === "settings" && (
+          <div className="space-y-6">
+            <HealthStatusCard
+              error={health.error}
+              health={health.health}
+              isFetching={health.isFetching}
+              onRefresh={() => void health.refresh()}
+            />
+            <ModelSettings settings={modelSettings} onSettingsChange={setModelSettings} />
+          </div>
+        )}
       </main>
     </div>
   );

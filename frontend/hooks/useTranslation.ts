@@ -9,6 +9,7 @@ import {
   createPendingJobFromSource,
   createPendingJobFromText,
   getTranslationJob,
+  retryFailedChunk as retryFailedChunkRequest,
   translateAll,
   translatePage,
   translateText,
@@ -100,6 +101,13 @@ export function useTranslation() {
     onError,
   });
 
+  const retryChunkMutation = useMutation({
+    mutationFn: ({ jobId, pageIndex, chunkIndex }: { jobId: number; pageIndex: number; chunkIndex: number }) =>
+      retryFailedChunkRequest(jobId, pageIndex, chunkIndex),
+    onSuccess: applyResult,
+    onError,
+  });
+
   const translateUrlAllMutation = useMutation({
     mutationFn: async (request: UrlTranslationRequest) => {
       let job = currentJob;
@@ -177,7 +185,11 @@ export function useTranslation() {
     translatePageMutation.isPending ||
     translateAllMutation.isPending ||
     translateUrlAllMutation.isPending ||
-    translateUrlFirstMutation.isPending;
+    translateUrlFirstMutation.isPending ||
+    retryChunkMutation.isPending;
+  const retryingChunkKey = retryChunkMutation.isPending && retryChunkMutation.variables
+    ? `${retryChunkMutation.variables.pageIndex}:${retryChunkMutation.variables.chunkIndex}`
+    : null;
 
   const activePage = currentJob?.pages[currentPageIndex] ?? null;
   const translatedCount = currentJob?.pages.filter((page) => page.status === "completed").length ?? 0;
@@ -214,6 +226,7 @@ export function useTranslation() {
     isTranslating,
     pageCount,
     progress,
+    retryingChunkKey,
     statusLabel,
     translatedCount,
     viewerMode,
@@ -236,6 +249,17 @@ export function useTranslation() {
       setCurrentPageIndexState(Math.min(Math.max(index, 0), Math.max(currentJob.pages.length - 1, 0)));
     },
     setViewerMode,
+    retryFailedChunk(pageIndex: number, chunkIndex: number) {
+      if (!currentJob || currentJob.jobId === 0) {
+        return;
+      }
+      setProgressMessage(`Chunk ${chunkIndex + 1} 재시도 중입니다.`);
+      retryChunkMutation.mutate({
+        jobId: currentJob.jobId,
+        pageIndex,
+        chunkIndex,
+      });
+    },
     translateCurrentPage(request: PageTranslateRequest) {
       if (!currentJob || currentJob.jobId === 0) {
         if (currentJob) {

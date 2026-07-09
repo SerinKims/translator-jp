@@ -1,5 +1,23 @@
 # FRONTEND
 
+## 2026-07-09 Retry, Candidate, and Health UI
+
+- The translation viewer shows failed chunks for the current page. Each item
+  displays a source preview, error message, retry count, and a retry button.
+- Chunk retry calls the page-scoped retry endpoint. While a retry is running,
+  translation controls and the selected retry action are disabled. Success
+  refreshes job detail; failure keeps the chunk visible and displays the API
+  error.
+- The glossary screen shows pending candidates with source context, model
+  translation, user correction, and suggested term. Approval opens an editor
+  for term metadata; rejection requires confirmation.
+- Candidate approval defaults are `term_type=common`, `priority=80`,
+  `is_required=true`, and `is_case_sensitive=false`.
+- The app header always shows a system status badge. Selecting it opens the
+  settings section, where Backend, Ollama, database, and model status are shown.
+- Health is checked once when the app starts. Only the settings status card
+  provides manual refresh; there is no polling or focus-based refresh.
+
 ## 1. 기술 스택
 
 ```text
