@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
+import { Eye, EyeOff, Pencil, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 
 import {
   AlertDialog,
@@ -24,6 +24,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/api/client";
 import type {
+  GlossaryImportRequest,
+  GlossaryImportResponse,
   GlossarySourceLanguage,
   GlossaryTerm,
   GlossaryTermCreateRequest,
@@ -55,6 +57,8 @@ export function GlossaryManager({
   createTerm,
   deleteTerm,
   error,
+  importTerms,
+  isImporting,
   isLoading,
   isMutating,
   permanentlyDeleteTerm,
@@ -64,12 +68,18 @@ export function GlossaryManager({
   createTerm: (request: GlossaryTermCreateRequest) => void;
   deleteTerm: (id: number) => void;
   error: unknown;
+  importTerms: (
+    request: GlossaryImportRequest,
+    options: { onSuccess: (result: GlossaryImportResponse) => void },
+  ) => void;
+  isImporting: boolean;
   isLoading: boolean;
   isMutating: boolean;
   permanentlyDeleteTerm: (id: number, onSuccess: () => void) => void;
   terms: GlossaryTerm[];
   updateTerm: (id: number, request: Partial<GlossaryTermCreateRequest>) => void;
 }) {
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [editingTerm, setEditingTerm] = useState<GlossaryTerm | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<GlossaryTerm | null>(null);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<GlossaryTerm | null>(null);
@@ -82,6 +92,8 @@ export function GlossaryManager({
   const [priority, setPriority] = useState(80);
   const [isRequired, setIsRequired] = useState(true);
   const [isCaseSensitive, setIsCaseSensitive] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<GlossaryImportResponse | null>(null);
 
   const sortedTerms = terms
     .slice()
@@ -143,6 +155,37 @@ export function GlossaryManager({
     resetForm();
   };
 
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        setImportError("CSV 파일 내용이 비어 있습니다.");
+        return;
+      }
+      importTerms(
+        { text },
+        {
+          onSuccess: (result) => {
+            setImportError(null);
+            setImportResult(result);
+          },
+        },
+      );
+    } catch {
+      setImportError("CSV 파일을 읽지 못했습니다. UTF-8 형식인지 확인해주세요.");
+    } finally {
+      input.value = "";
+    }
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
       <Card>
@@ -150,14 +193,41 @@ export function GlossaryManager({
           <div>
             <CardTitle>용어집 관리</CardTitle>
           </div>
-          <Badge variant="secondary">{terms.length}개</Badge>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Badge variant="secondary">{terms.length}개</Badge>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              aria-label="CSV 파일 선택"
+              className="sr-only"
+              disabled={isMutating}
+              onChange={handleImportFile}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isMutating}
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />
+              {isImporting ? "가져오는 중..." : "CSV 가져오기"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {importError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {importError}
+            </div>
+          ) : null}
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
               {getErrorMessage(error)}
             </div>
           ) : null}
+          {importResult ? <GlossaryImportSummary result={importResult} /> : null}
           <Table>
             <TableHeader>
               <TableRow>
@@ -367,6 +437,45 @@ function EmptyRow({ children }: { children: ReactNode }) {
         {children}
       </TableCell>
     </TableRow>
+  );
+}
+
+function GlossaryImportSummary({ result }: { result: GlossaryImportResponse }) {
+  return (
+    <div className="space-y-3 rounded-md border bg-muted/30 p-3" role="status">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">CSV 가져오기 완료</span>
+        <Badge variant="success">{result.imported}개 등록</Badge>
+        <Badge variant="secondary">{result.skipped_duplicates}개 중복</Badge>
+        <Badge variant={result.conflicts.length > 0 ? "destructive" : "secondary"}>
+          {result.conflicts.length}개 충돌
+        </Badge>
+      </div>
+      {result.conflicts.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">충돌 상세</p>
+          <div className="grid gap-2">
+            {result.conflicts.map((conflict) => (
+              <div
+                key={`${conflict.row}-${conflict.source_lang}-${conflict.source_term}-${conflict.target_term}`}
+                className="rounded-md border bg-background p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Badge variant="outline">{conflict.row}행</Badge>
+                  <span className="text-muted-foreground">
+                    {sourceLanguageLabels[conflict.source_lang] ?? conflict.source_lang} → 한국어
+                  </span>
+                  <span className="font-medium">
+                    {conflict.source_term} → {conflict.target_term}
+                  </span>
+                </div>
+                <p className="mt-2 text-destructive">{conflict.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

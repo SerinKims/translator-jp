@@ -116,6 +116,8 @@ export default function Home() {
           <GlossaryManager
             terms={glossary.terms}
             error={glossary.error}
+            importTerms={(request, options) => glossary.importTerms.mutate(request, options)}
+            isImporting={glossary.importTerms.isPending}
             isLoading={glossary.isLoading}
             isMutating={isGlossaryMutating}
             createTerm={(request) => glossary.createTerm.mutate(request)}
