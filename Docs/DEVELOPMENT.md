@@ -104,6 +104,48 @@ PIXIV_USE_PLAYWRIGHT=false
 
 ## 6. 명령어
 
+### 6.0 빠른 실행
+
+Windows PowerShell:
+
+```powershell
+.\run.ps1
+```
+
+기본 backend Python 환경은 conda `tr-jp`이다. `tr-jp`가 없으면 `python=3.11`과 `pip`를 포함해 생성한다. 이후 `backend/requirements.txt`를 기준으로 설치되지 않은 Python 패키지만 `tr-jp` 안에 설치한다. base 환경에는 설치하지 않는다. `-UseVenv`를 지정한 경우에만 `backend/.venv`를 사용한다.
+
+첫 실행 준비만 따로 수행:
+
+```powershell
+.\scripts\setup.ps1
+```
+
+개발 서버만 실행:
+
+```powershell
+.\scripts\dev.ps1
+```
+
+다른 conda 환경:
+
+```powershell
+.\run.ps1 -CondaEnv my-env
+```
+
+강제 venv:
+
+```powershell
+.\run.ps1 -UseVenv
+```
+
+setup 확인 생략:
+
+```powershell
+.\run.ps1 -SkipSetup
+```
+
+`run.ps1`은 기본적으로 setup을 가볍게 먼저 실행해 conda env, 누락 Python 패키지, DB, frontend 의존성을 확인한 뒤 backend/frontend 개발 서버를 각각 새 PowerShell 창으로 실행한다.
+
 ### 6.1 Ollama 모델 확인
 
 ```powershell

@@ -1,6 +1,9 @@
 .pyc*
 __pycache__
 .env
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
 node_modules/
 .next/
 .pnpm-store/
