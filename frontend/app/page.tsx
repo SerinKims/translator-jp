@@ -110,8 +110,20 @@ export default function Home() {
             histories={history.histories}
             isLoading={history.isLoading}
             isMutating={isHistoryMutating}
-            clearHistory={() => history.clearHistory.mutate()}
-            deleteHistory={(id) => history.deleteHistory.mutate(id)}
+            clearHistory={() =>
+              history.clearHistory.mutate(undefined, {
+                onSuccess: () => {
+                  translation.clearCurrentJob();
+                },
+              })
+            }
+            deleteHistory={(id) => {
+              history.deleteHistory.mutate(id, {
+                onSuccess: () => {
+                  translation.clearCurrentJob(id);
+                },
+              });
+            }}
             onOpenHistory={(jobId) => {
               history.openHistory.mutate(jobId, {
                 onSuccess: (job) => {

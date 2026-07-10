@@ -50,6 +50,25 @@ export function useTranslation() {
     setProgressMessage("");
   };
 
+  const clearCurrentJob = (deletedJobId?: number | string) => {
+    const normalizedDeletedJobId = typeof deletedJobId === "string" ? Number(deletedJobId.replace(/^job-/, "")) : deletedJobId;
+    const shouldClear =
+      deletedJobId === undefined ||
+      currentJob?.jobId === normalizedDeletedJobId ||
+      (typeof deletedJobId === "string" && currentJob?.id === deletedJobId);
+
+    if (!shouldClear) {
+      return;
+    }
+
+    setCurrentJob(null);
+    setCurrentPageIndexState(0);
+    setViewerMode("translation");
+    setProgressMessage("");
+    setErrorMessage(null);
+    queryClient.removeQueries({ queryKey: ["translation", "current"] });
+  };
+
   const onError = (error: unknown) => {
     setErrorMessage(getErrorMessage(error));
     setProgressMessage("");
@@ -254,6 +273,7 @@ export function useTranslation() {
       applyJob({ ...job, currentPageIndex: 0 });
       setViewerMode("translation");
     },
+    clearCurrentJob,
     prepareText(text: string, sourceLang: SourceLanguage, options: TranslationOptions) {
       applyJob(createPendingJobFromText({ text, sourceLang, options }));
       setErrorMessage(null);

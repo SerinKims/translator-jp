@@ -1,5 +1,13 @@
 # FRONTEND
 
+## 2026-07-10 Translation History Deletion Refresh UX
+
+- After deleting one history item, the history list query is refreshed.
+- If the deleted item is the currently opened translation job, the viewer state
+  is cleared so the app does not keep showing a stale deleted job.
+- After deleting all history, the history list query is refreshed and any opened
+  translation job is cleared.
+
 ## 2026-07-10 Manual Translation Edit UX
 
 - The translation viewer shows edit controls for a completed page with saved
