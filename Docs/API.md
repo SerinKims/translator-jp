@@ -1,5 +1,141 @@
 # API Specification
 
+## 2026-07-10 Translation Cache Clear Contract
+
+The settings screen can clear server-side translation reuse cache.
+
+```http
+DELETE /api/cache/translations
+```
+
+- The endpoint deletes all rows from `translation_cache`.
+- It does not delete translation jobs, pages, chunks, feedback, glossary data,
+  or browser local settings.
+- The endpoint is idempotent and returns `204 No Content` even when the cache
+  is already empty.
+- No request body is required.
+
+## 2026-07-10 Manual Translation Edit Contract
+
+The translation viewer can save a user-edited final translation for one page.
+
+```http
+PATCH /api/translations/{job_id}/pages/{page_index}/translation
+```
+
+Request:
+
+```json
+{
+  "translated_text": "사용자가 다듬은 최종 번역문",
+  "comment": null
+}
+```
+
+- The endpoint updates `translation_pages.translated_text` for the selected page.
+- It rebuilds `translation_jobs.translated_text` from completed pages in page order.
+- It creates a `translation_feedback` row with `feedback_type="manual_edit"`,
+  `chunk_id=null`, the previous page translation as `model_translation`, and
+  the edited text as `user_corrected_translation`.
+- It does not update `translation_chunks` or `translation_cache`.
+- Missing job or page returns `404`; unfinished pages return `409`; blank
+  `translated_text` returns request validation `422`.
+- The response uses the existing `TranslationDetailResponse` shape.
+
+## 2026-07-10 Translation History Deletion Feedback Contract
+
+Translation history deletion also removes stored translation feedback.
+
+```http
+DELETE /api/translations/{job_id}
+DELETE /api/translations
+```
+
+- `DELETE /api/translations/{job_id}` deletes the selected job, its pages,
+  chunks, and feedback rows linked to that job or its chunks.
+- `DELETE /api/translations` deletes all translation jobs and clears
+  `translation_feedback`.
+- `translation_cache` is preserved for both delete operations.
+
+## 2026-07-10 Manual Glossary Candidate Creation
+
+The glossary candidate workflow supports a manual source/target term selection
+entrypoint from the translation viewer.
+
+```http
+POST /api/glossary/candidates
+```
+
+Request:
+
+```json
+{
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "source_term": "王都",
+  "suggested_target_term": "왕도",
+  "source_text": "王都の空を見上げた。",
+  "model_translation": "왕도의 하늘을 올려다보았다.",
+  "user_corrected_translation": "왕도의 하늘을 올려다보았다."
+}
+```
+
+- This endpoint creates a `pending` `glossary_candidates` row directly from
+  terms selected by the user.
+- Unlike feedback-derived candidate creation, manual creation does not require
+  `model_translation` and `user_corrected_translation` to differ.
+- Empty `source_term`, `suggested_target_term`, context, or language fields are
+  rejected by request validation.
+- Approval and rejection continue to use the existing
+  `POST /api/glossary/candidates/{candidate_id}/approve` and
+  `POST /api/glossary/candidates/{candidate_id}/reject` endpoints.
+
+## 2026-07-09 Page-Scoped Chunk Retry Contract
+
+Frontend retry actions use the page-scoped endpoint:
+
+```http
+POST /api/translations/{job_id}/pages/{page_index}/chunks/{chunk_index}/retry
+```
+
+- The endpoint selects the chunk by job, page, and chunk index, so equal chunk
+  indexes on different pages are not ambiguous.
+- Only chunks in `failed` status can be retried.
+- A missing job, page, or chunk returns `404`.
+- A chunk that is not failed returns `400`.
+- The response uses the existing `TranslationResponse` shape and identifies the
+  retried page through `current_page_index`.
+- `POST /api/translations/{job_id}/chunks/{chunk_index}/retry` remains available
+  for backward compatibility. It may return `409` when multiple failed chunks
+  in the job share the same chunk index.
+
+## 2026-07-06 Glossary DB Field Contract
+
+`POST /api/glossary`, `PATCH /api/glossary/{term_id}`, and
+`POST /api/glossary/candidates/{candidate_id}/approve` accept DB-backed
+glossary fields:
+
+```json
+{
+  "glossary_set_id": null,
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "source_term": "魔王",
+  "target_term": "마왕",
+  "term_type": "title",
+  "description": "판타지 직함",
+  "aliases": ["魔王様"],
+  "priority": 90,
+  "is_required": true,
+  "is_case_sensitive": false,
+  "is_active": true
+}
+```
+
+Responses include `glossary_set_id` and `is_case_sensitive` in addition to the
+existing glossary fields. CSV import also accepts optional `glossary_set_id`
+and `is_case_sensitive` columns.
+
 ## 2026-06-30 Page Translation Contract
 
 When `text` contains `[newpage]`, translation is page-scoped.
@@ -31,6 +167,8 @@ History and retry endpoints:
 ```http
 GET /api/translations
 GET /api/translations/{job_id}
+DELETE /api/translations
+DELETE /api/translations/{job_id}
 POST /api/translations/{job_id}/chunks/{chunk_index}/retry
 ```
 
@@ -39,6 +177,10 @@ POST /api/translations/{job_id}/chunks/{chunk_index}/retry
   full `original_text`.
 - `GET /api/translations/{job_id}` returns job detail, full job text fields,
   `translation_pages`, and `translation_chunks`.
+- `DELETE /api/translations/{job_id}` permanently deletes one job. Missing jobs
+  return `404`.
+- `DELETE /api/translations` permanently deletes all translation jobs. It is
+  idempotent and returns `204 No Content` even when no jobs exist.
 - Chunk retry only accepts chunks in `failed` status. It increments
   `retry_count`, reuses the job model/prompt/options, reselects glossary terms
   for the chunk, checks cache with the selected glossary hash, and then updates
@@ -297,6 +439,27 @@ GET /api/translations/{job_id}
 POST /api/translations/{job_id}/chunks/{chunk_index}/retry
 ```
 
+### 6.4 단건 삭제
+
+```http
+DELETE /api/translations/{job_id}
+```
+
+성공 시 `204 No Content`를 반환한다. 존재하지 않는 `job_id`는 `404`를 반환한다.
+
+삭제 시 `translation_jobs` row를 영구 삭제하며, 연결된 `translation_pages`와
+`translation_chunks`는 DB cascade로 함께 삭제된다. `translation_feedback`은 기존
+외래키 정책에 따라 `job_id`와 `chunk_id`가 `NULL`이 되고, `translation_cache`는
+유지된다.
+
+### 6.5 전체 삭제
+
+```http
+DELETE /api/translations
+```
+
+성공 시 `204 No Content`를 반환한다. 삭제할 이력이 없어도 같은 응답을 반환한다.
+
 ---
 
 ## 7. 용어집
@@ -376,7 +539,23 @@ DELETE /api/glossary/{term_id}
 
 실제 row를 삭제하지 않고 `is_active=false`로 변경한다. 응답은 변경된 용어 객체를 반환한다.
 
-### 7.5 CSV import
+### 7.5 용어집 영구 삭제
+
+```http
+DELETE /api/glossary/{term_id}/permanent
+```
+
+비활성 용어만 `glossary_terms`에서 실제로 삭제한다.
+
+```text
+삭제 성공: 204 No Content
+존재하지 않는 용어: 404 Not Found
+활성 용어 삭제 시도: 409 Conflict
+```
+
+활성 용어는 먼저 `DELETE /api/glossary/{term_id}`로 비활성화해야 한다. 영구 삭제는 복구할 수 없으며, 같은 ID를 다시 삭제하면 `404 Not Found`를 반환한다.
+
+### 7.6 CSV import
 
 ```http
 POST /api/glossary/import
@@ -410,7 +589,7 @@ Response:
 }
 ```
 
-### 7.6 후보 용어
+### 7.7 후보 용어
 
 ```http
 GET /api/glossary/candidates
@@ -418,9 +597,9 @@ POST /api/glossary/candidates/{candidate_id}/approve
 POST /api/glossary/candidates/{candidate_id}/reject
 ```
 
-후보 상태는 `pending`, `approved`, `rejected`만 허용한다.
+후보 상태는 `pending`, `approved`, `rejected`만 허용한다. `approved`는 승인 응답과 기존 데이터 호환용 상태이다.
 
-Approve는 후보를 `glossary_terms`에 등록하고 후보 상태를 `approved`로 바꾸는 작업을 한 트랜잭션으로 처리한다. 등록 중 duplicate/conflict가 발생하면 409를 반환하고 후보는 `pending`으로 남는다. Reject는 용어를 등록하지 않고 후보 상태만 `rejected`로 변경한다.
+Approve는 후보를 `glossary_terms`에 등록하고 `glossary_candidates` row를 삭제하는 작업을 한 트랜잭션으로 처리한다. 응답은 기존 호환성을 위해 `status="approved"` 후보 스냅샷을 반환한다. 등록 중 duplicate/conflict가 발생하면 409를 반환하고 후보는 `pending`으로 남는다. Reject는 용어를 등록하지 않고 후보 상태만 `rejected`로 변경한다.
 
 ---
 
@@ -482,3 +661,37 @@ zh-CN -> ko: translate_zh_ko_v1
 zh-TW -> ko: translate_zh_ko_v1
 en -> ko: translate_en_ko_v1
 ```
+
+Normal frontend requests omit `prompt_version`. The backend selects the prompt
+from the resolved `source_lang` and `target_lang`, then returns the applied
+`prompt_version` in the response. `prompt_version` remains an optional backend
+override for tests and maintenance tools; if the global Japanese default
+`translate_ja_ko_v1` is supplied with a non-Japanese source language, it falls
+back to that language pair's default prompt.
+
+## 2026-07-06 Request-Scoped Model Settings
+
+Translation and pixiv fetch requests may include DB-backed request settings:
+
+```json
+{
+  "model_name": "gemma4:26b-a4b-it-q4_K_M",
+  "style": "webnovel",
+  "honorific_policy": "preserve",
+  "think": false,
+  "options": {
+    "temperature": 0.3,
+    "top_p": 0.9,
+    "num_ctx": 8192,
+    "num_predict": 4096
+  }
+}
+```
+
+These values are persisted to `translation_jobs.model_name`,
+`translation_jobs.style`,
+`translation_jobs.honorific_policy`, `translation_jobs.ollama_think`, and
+`translation_jobs.ollama_options_json`. The backend-selected prompt version is
+persisted to `translation_jobs.prompt_version`. Cache keys use the
+request-scoped model, resolved prompt, style, honorific policy, and
+preserve-name setting.

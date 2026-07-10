@@ -61,6 +61,7 @@ def test_retry_failed_chunk_success_updates_counts_and_retry_count(
     assert page.status == "completed"
     assert page.completed_chunks == 2
     assert page.failed_chunks == 0
+    assert page.translated_text == "completed translation\n\nretried translation"
     assert job.status == "completed"
     assert job.completed_chunks == 2
     assert job.failed_chunks == 0
@@ -134,6 +135,115 @@ def test_retry_failed_chunk_uses_cache_without_llm_call(db_session: Session) -> 
     assert retried is not None
     assert retried.status == "completed"
     assert retried.retry_count == 2
+
+
+def test_retry_failed_chunk_by_page_selects_exact_chunk(db_session: Session) -> None:
+    job = TranslationRepository(db_session).create_job(
+        original_text="page zero[newpage]page one",
+        status="failed",
+        total_chunks=2,
+        failed_chunks=2,
+        error_message="model timeout",
+    )
+    page_repository = PageRepository(db_session)
+    first_page = page_repository.create_page(
+        job_id=job.id,
+        page_index=0,
+        source_text="page zero",
+        status="failed",
+        total_chunks=1,
+        failed_chunks=1,
+        error_message="model timeout",
+    )
+    second_page = page_repository.create_page(
+        job_id=job.id,
+        page_index=1,
+        source_text="page one",
+        status="failed",
+        total_chunks=1,
+        failed_chunks=1,
+        error_message="model timeout",
+    )
+    chunk_repository = ChunkRepository(db_session)
+    for page, source_text in ((first_page, "page zero"), (second_page, "page one")):
+        chunk_repository.create_chunk(
+            job_id=job.id,
+            page_id=page.id,
+            chunk_index=0,
+            source_text=source_text,
+            status="failed",
+            error_message="model timeout",
+        )
+
+    fake_client = FakeOllamaClient(["retried page one"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+    )
+
+    try:
+        response = TestClient(app).post(f"/api/translations/{job.id}/pages/1/chunks/0/retry")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["current_page_index"] == 1
+    first_chunk = chunk_repository.get_chunk(
+        job_id=job.id,
+        page_id=first_page.id,
+        chunk_index=0,
+    )
+    second_chunk = chunk_repository.get_chunk(
+        job_id=job.id,
+        page_id=second_page.id,
+        chunk_index=0,
+    )
+    assert first_chunk is not None and first_chunk.status == "failed"
+    assert second_chunk is not None and second_chunk.status == "completed"
+    assert second_chunk.translated_text == "retried page one"
+
+
+def test_retry_failed_chunk_by_page_rejects_missing_page(db_session: Session) -> None:
+    job, _page = _create_job_with_failed_chunk(db_session)
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        response = TestClient(app).post(f"/api/translations/{job.id}/pages/99/chunks/1/retry")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_retry_failed_chunk_by_page_rejects_missing_chunk(db_session: Session) -> None:
+    job, page = _create_job_with_failed_chunk(db_session)
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        response = TestClient(app).post(
+            f"/api/translations/{job.id}/pages/{page.page_index}/chunks/99/retry"
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_retry_failed_chunk_by_page_rejects_completed_chunk(
+    db_session: Session,
+) -> None:
+    job, page = _create_completed_job(db_session)
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        response = TestClient(app).post(
+            f"/api/translations/{job.id}/pages/{page.page_index}/chunks/0/retry"
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
 
 
 def _create_job_with_failed_chunk(db_session: Session):

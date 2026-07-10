@@ -121,6 +121,9 @@ class TranslationCacheService:
             selected_glossary_hash=selected_glossary_hash,
         )
 
+    def clear_all(self) -> int:
+        return self.repository.delete_all()
+
 
 def _sha256_json(value: Any) -> str:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

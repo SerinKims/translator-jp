@@ -1,5 +1,37 @@
 # PRD: 일본어 → 한국어 웹소설 번역 사이트
 
+## 2026-07-10 Translation Cache Clear Requirements
+
+- Users can clear the server-side translation reuse cache from the settings
+  screen.
+- Clearing cache deletes only `translation_cache` rows.
+- Translation history, page/chunk records, feedback, glossary data, and browser
+  local model settings are preserved.
+- Clearing an already empty cache is treated as a successful no-op.
+
+## 2026-07-10 Manual Translation Edit Requirements
+
+- Users can edit and save the Korean translation for the current page in the
+  translation viewer.
+- The saved edit becomes the final translation shown to the user and is stored
+  in `translation_pages.translated_text` and the rebuilt
+  `translation_jobs.translated_text`.
+- The previous model translation and the user edit are preserved in
+  `translation_feedback` with `feedback_type="manual_edit"`.
+- Manual edits do not update `translation_cache` or
+  `translation_chunks.translated_text`; those remain model-output records.
+- Blank edits and pages that have not completed translation cannot be saved.
+
+## 2026-07-10 수동 용어집 후보 등록 요구사항
+
+- 사용자는 번역 결과 화면에서 번역어와 대응 원어를 직접 선택하여 용어집
+  후보로 등록할 수 있어야 한다.
+- 예: 번역문에서 `왕도`를 선택하고 원문에서 `王都`를 선택하면
+  `王都 → 왕도` 후보가 `pending` 상태로 저장된다.
+- 후보 등록은 실제 용어집 적용이 아니며, 사용자가 용어집 화면에서 승인해야
+  `glossary_terms`에 등록된다.
+- 1차 구현에서는 번역문 diff나 LLM을 이용한 자동 원어 추정은 수행하지 않는다.
+
 ## 1. 목적
 
 사용자가 입력한 일본어 원문 또는 pixiv 소설 URL에서 수집한 원문을 로컬 LLM으로 한국어 웹소설 문체로 번역한다.
@@ -81,7 +113,8 @@
 - chunk별 번역 상태를 저장한다.
 - 실패 chunk만 재시도할 수 있다.
 - 중복 번역을 캐싱한다.
-- 용어집을 추가, 수정, 비활성화, CSV import, 후보 승인/거절 방식으로 관리한다.
+- 용어집을 추가, 수정, 비활성화, 재활성화, 영구 삭제, CSV import, 후보 승인/거절 방식으로 관리한다.
+- 용어집 영구 삭제는 비활성 용어에만 허용하며 삭제 후 복구할 수 없다.
 - 사용자 수정/피드백을 저장한다.
 - 하네스 평가를 실행하고 결과를 저장한다.
 
@@ -162,6 +195,7 @@ translation_cache 적용
 translation_feedback 저장
 chunk 재시도 기능
 번역 이력 상세 조회
+번역 이력 단건/전체 삭제
 prompt versioning
 regression report 저장
 ```

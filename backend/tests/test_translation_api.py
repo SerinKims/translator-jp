@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.routes.translate import get_translation_service
 from app.db.models import TranslationJob
+from app.db.repositories.page_repository import PageRepository
 from app.db.session import get_db
 from app.llm.ollama_client import OllamaClientError
 from app.llm.translator import (
@@ -17,7 +18,6 @@ from app.llm.translator import (
     TranslationService,
 )
 from app.main import app
-
 
 SOURCE_TEXT = "\u5f7c\u306f\u9759\u304b\u306b\u76ee\u3092\u9589\u3058\u305f\u3002"
 
@@ -62,6 +62,41 @@ def test_translate_api_returns_translation_response(db_session: Session) -> None
     assert saved is not None
     assert saved.status == "completed"
     assert saved.source_site == "manual"
+
+
+def test_translate_api_merges_page_chunks_in_response_and_detail(
+    db_session: Session,
+) -> None:
+    fake_client = FakeOllamaClient(["chunk0", "chunk1"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+        max_chars_per_chunk=5,
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/translate",
+            json={"text": "\u3042" * 6, "use_cache": False},
+        )
+        detail = client.get(f"/api/translations/{response.json()['job_id']}")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["translated_text"] == "chunk0\n\nchunk1"
+    assert [chunk["index"] for chunk in payload["chunks"]] == [0, 1]
+
+    assert detail.status_code == 200
+    detail_payload = detail.json()
+    assert detail_payload["translated_text"] == "chunk0\n\nchunk1"
+    assert detail_payload["pages"][0]["translated_text"] == "chunk0\n\nchunk1"
+
+    pages = PageRepository(db_session).list_pages(job_id=payload["job_id"])
+    assert pages[0].translated_text == "chunk0\n\nchunk1"
 
 
 def test_translate_api_second_same_request_returns_cache_hit(db_session: Session) -> None:
@@ -111,6 +146,85 @@ def test_translate_api_use_cache_false_bypasses_existing_cache(db_session: Sessi
     assert second.json()["cache_hit"] is False
     assert second.json()["translated_text"] == "fresh translation"
     assert len(fake_client.calls) == 2
+
+
+def test_translate_api_persists_request_model_and_prompt_settings(
+    db_session: Session,
+) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=FakeOllamaClient(["translated"]),
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/translate",
+            json={
+                "text": SOURCE_TEXT,
+                "model_name": "custom-model:latest",
+                "prompt_version": "translate_ja_ko_v1",
+                "style": "lightnovel",
+                "honorific_policy": "naturalize",
+                "preserve_names": False,
+                "think": "low",
+                "options": {"temperature": 0.7, "num_ctx": 4096},
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model"] == "custom-model:latest"
+    assert payload["prompt_version"] == "translate_ja_ko_v1"
+    assert payload["style"] == "lightnovel"
+
+    saved = db_session.get(TranslationJob, payload["job_id"])
+    assert saved is not None
+    assert saved.model_name == "custom-model:latest"
+    assert saved.prompt_version == "translate_ja_ko_v1"
+    assert saved.style == "lightnovel"
+    assert saved.honorific_policy == "naturalize"
+    assert saved.preserve_names == 0
+    assert saved.ollama_think == '"low"'
+    assert saved.ollama_options_json == '{"num_ctx": 4096, "temperature": 0.7}'
+
+
+def test_translate_api_omitted_prompt_version_uses_language_default(
+    db_session: Session,
+) -> None:
+    fake_client = FakeOllamaClient(["translated"])
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_translation_service] = lambda: TranslationService(
+        db_session,
+        ollama_client=fake_client,
+    )
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/translate",
+            json={
+                "text": "He closed his eyes and waited for dawn.",
+                "source_lang": "en",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    user_prompt = fake_client.calls[0]["messages"][1]["content"]
+    assert payload["source_lang"] == "en"
+    assert payload["prompt_version"] == "translate_en_ko_v1"
+    assert "source_lang: en" in user_prompt
+
+    saved = db_session.get(TranslationJob, payload["job_id"])
+    assert saved is not None
+    assert saved.source_language == "en"
+    assert saved.prompt_version == "translate_en_ko_v1"
 
 
 def test_translate_api_rejects_non_ko_target(db_session: Session) -> None:

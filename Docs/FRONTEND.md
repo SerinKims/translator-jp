@@ -1,5 +1,66 @@
 # FRONTEND
 
+## 2026-07-10 Translation Cache Clear UX
+
+- The settings section shows a cache management card.
+- Selecting `캐시 삭제` opens a confirmation dialog before clearing server-side
+  translation cache.
+- While deletion is pending, the clear action is disabled.
+- Success and failure messages are shown in the cache management card.
+- Clearing cache does not reset browser local model settings or translation
+  history state.
+
+## 2026-07-10 Translation History Deletion Refresh UX
+
+- After deleting one history item, the history list query is refreshed.
+- If the deleted item is the currently opened translation job, the viewer state
+  is cleared so the app does not keep showing a stale deleted job.
+- After deleting all history, the history list query is refreshed and any opened
+  translation job is cleared.
+
+## 2026-07-10 Manual Translation Edit UX
+
+- The translation viewer shows edit controls for a completed page with saved
+  translated text.
+- Selecting `수정` switches the translated-text panel to a textarea.
+- `저장` calls `PATCH /api/translations/{job_id}/pages/{page_index}/translation`;
+  while saving, edit controls are disabled.
+- `취소` exits edit mode and restores the saved page translation.
+- After a successful save, the current job detail and history list are refreshed.
+- Glossary candidate selection is disabled while translation edit mode is active.
+
+## 2026-07-10 Manual Glossary Candidate Selection UX
+
+- The translation viewer provides a `용어 후보 만들기` action when the current
+  page has both source text and translated text.
+- Starting the action switches the viewer to source + translation mode.
+- The user selects the target term in the translated text, then selects the
+  corresponding source term in the original text.
+- After both sides are selected, `후보 등록 확인` opens a confirmation dialog
+  showing `source_term → suggested_target_term`, for example `王都 → 왕도`.
+- Confirming creates a pending glossary candidate and refreshes the glossary
+  candidate query. Approval/rejection remains in the glossary screen.
+- Automatic source-term inference from edited translations is out of scope for
+  this MVP; the selected pair is treated as user-confirmed.
+
+## 2026-07-09 Retry, Candidate, and Health UI
+
+- The translation viewer shows failed chunks for the current page. Each item
+  displays a source preview, error message, retry count, and a retry button.
+- Chunk retry calls the page-scoped retry endpoint. While a retry is running,
+  translation controls and the selected retry action are disabled. Success
+  refreshes job detail; failure keeps the chunk visible and displays the API
+  error.
+- The glossary screen shows pending candidates as compact source/target term
+  pairs only, without source or translation context. Approval opens an editor
+  for term metadata; rejection requires confirmation.
+- Candidate approval defaults are `term_type=common`, `priority=80`,
+  `is_required=true`, and `is_case_sensitive=false`.
+- The app header always shows a system status badge. Selecting it opens the
+  settings section, where Backend, Ollama, database, and model status are shown.
+- Health is checked once when the app starts. Only the settings status card
+  provides manual refresh; there is no polling or focus-based refresh.
+
 ## 1. 기술 스택
 
 ```text
@@ -25,7 +86,9 @@ pixiv URL 입력 UI
 번역 결과 표시
 chunk 진행 상태 표시
 번역 이력 조회
-용어집 관리 화면
+번역 이력 단건/전체 삭제
+용어집 추가/수정/비활성화/재활성화/영구 삭제 관리 화면
+용어집 UTF-8 CSV import 및 등록/중복/충돌 결과 확인
 사용자 피드백 입력 화면
 ```
 
@@ -57,6 +120,12 @@ chunk 진행 상태
 번역 중에는 번역 버튼을 비활성화한다.
 긴 텍스트 번역 중에는 진행 상태를 표시한다.
 API 오류는 사용자가 이해할 수 있는 메시지로 보여준다.
+용어 영구 삭제 버튼은 비활성 용어에만 표시한다.
+용어 영구 삭제 전 원문 용어와 복구 불가 안내를 포함한 확인창을 표시한다.
+용어 삭제 요청 중에는 중복 요청을 막고, 성공 후 목록 캐시와 해당 수정 폼을 초기화한다.
+용어 CSV import는 `.csv` 파일을 UTF-8 텍스트로 읽어 Backend API로 전송한다.
+용어 CSV import 중에는 중복 요청과 다른 용어 변경을 막는다.
+용어 CSV import 완료 후 등록/중복/충돌 건수와 충돌 행별 상세를 표시하고 용어 목록을 갱신한다.
 Ollama을 사용할 수 없으면 명확히 안내한다.
 모델이 없으면 설치 명령을 안내한다.
 pixiv URL이 잘못되었으면 올바른 예시를 보여준다.
@@ -94,5 +163,32 @@ Frontend는 다음 API를 직접 호출하지 않는다.
 pixiv
 Ollama
 ```
+
+---
+
+## 7. 2026-07-06 Translation API Payload Settings
+
+Frontend sends user-configured request settings to Backend translation and
+pixiv fetch APIs instead of keeping them as fixed UI-only values.
+
+```text
+model_name
+source_lang
+target_lang
+style
+honorific_policy
+preserve_names
+use_glossary
+use_cache
+think
+options
+```
+
+Frontend does not send `prompt_version` in normal translation or pixiv fetch
+requests. Backend resolves it from the selected or auto-detected source
+language and returns the applied value for display/history.
+
+`client_options` remains a frontend-only state restore field and is removed
+before the backend payload is sent.
 
 모든 수집/번역 작업은 Backend API를 통해 수행한다.

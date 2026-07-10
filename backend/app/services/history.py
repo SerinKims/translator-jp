@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import TranslationChunk, TranslationJob, TranslationPage
 from app.db.repositories.chunk_repository import ChunkRepository
+from app.db.repositories.feedback_repository import TranslationFeedbackRepository
 from app.db.repositories.page_repository import PageRepository
 from app.db.repositories.translation_repository import TranslationRepository
 from app.schemas.translation import (
@@ -15,6 +16,7 @@ from app.schemas.translation import (
 from app.services.page_splitter import split_pages
 
 JOB_NOT_FOUND_MESSAGE = "Translation job not found."
+PAGE_NOT_FOUND_MESSAGE = "Translation page not found."
 PREVIEW_CHARS = 160
 
 
@@ -31,6 +33,7 @@ class HistoryService:
         self.translation_repository = TranslationRepository(db)
         self.page_repository = PageRepository(db)
         self.chunk_repository = ChunkRepository(db)
+        self.feedback_repository = TranslationFeedbackRepository(db)
 
     def list_translations(
         self,
@@ -60,6 +63,55 @@ class HistoryService:
                 for chunk in chunks
             ],
         )
+
+    def delete_translation(self, job_id: int) -> None:
+        deleted = self.translation_repository.delete_job(job_id)
+        if not deleted:
+            raise HistoryServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+    def delete_all_translations(self) -> None:
+        self.translation_repository.delete_all_jobs()
+
+    def update_page_translation(
+        self,
+        job_id: int,
+        page_index: int,
+        *,
+        translated_text: str,
+        comment: str | None = None,
+    ) -> TranslationDetailResponse:
+        job = self.translation_repository.get_job(job_id)
+        if job is None:
+            raise HistoryServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
+        page = self.page_repository.get_page(job_id=job.id, page_index=page_index)
+        if page is None:
+            raise HistoryServiceError(PAGE_NOT_FOUND_MESSAGE, status_code=404)
+        if page.status != "completed" or page.translated_text is None:
+            raise HistoryServiceError(
+                "Only completed translation pages can be edited.",
+                status_code=409,
+            )
+
+        previous_translation = page.translated_text
+        self.page_repository.update_page(page.id, translated_text=translated_text)
+        pages = self.page_repository.list_pages(job_id=job.id)
+        job_translated_text = "\n\n".join(
+            saved_page.translated_text
+            for saved_page in pages
+            if saved_page.status == "completed" and saved_page.translated_text is not None
+        )
+        self.translation_repository.update_job(job.id, translated_text=job_translated_text)
+        self.feedback_repository.create_feedback(
+            job_id=job.id,
+            chunk_id=None,
+            source_text=page.source_text,
+            model_translation=previous_translation,
+            user_corrected_translation=translated_text,
+            feedback_type="manual_edit",
+            comment=comment,
+        )
+        return self.get_translation_detail(job.id)
 
     def _job_to_history_item(self, job: TranslationJob) -> TranslationHistoryItem:
         return TranslationHistoryItem(

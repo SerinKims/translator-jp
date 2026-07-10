@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.glossary import (
     GlossaryCandidateApproveRequest,
+    GlossaryCandidateCreateRequest,
     GlossaryCandidateResponse,
     GlossaryImportResponse,
     GlossaryTermCreate,
@@ -16,7 +17,6 @@ from app.schemas.glossary import (
     glossary_term_to_response,
 )
 from app.services.glossary import GlossaryService, GlossaryServiceError
-
 
 router = APIRouter(tags=["glossary"])
 
@@ -75,6 +75,18 @@ def delete_glossary_term(
     return glossary_term_to_response(term)
 
 
+@router.delete("/glossary/{term_id}/permanent", status_code=204)
+def permanently_delete_glossary_term(
+    term_id: int,
+    service: Annotated[GlossaryService, Depends(get_glossary_service)],
+) -> Response:
+    try:
+        service.permanently_delete_term(term_id)
+    except GlossaryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return Response(status_code=204)
+
+
 @router.post("/glossary/import", response_model=GlossaryImportResponse)
 async def import_glossary_terms(
     request: Request,
@@ -95,6 +107,22 @@ def list_glossary_candidates(
 ) -> list[GlossaryCandidateResponse]:
     candidates = service.list_candidates(status=status)
     return [glossary_candidate_to_response(candidate) for candidate in candidates]
+
+
+@router.post(
+    "/glossary/candidates",
+    response_model=GlossaryCandidateResponse,
+    status_code=201,
+)
+def create_glossary_candidate(
+    request: GlossaryCandidateCreateRequest,
+    service: Annotated[GlossaryService, Depends(get_glossary_service)],
+) -> GlossaryCandidateResponse:
+    try:
+        candidate = service.create_candidate_from_manual_selection(**request.model_dump())
+    except GlossaryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return glossary_candidate_to_response(candidate)
 
 
 @router.post(

@@ -1,5 +1,60 @@
 # DB
 
+## 2026-07-10 Manual Translation Cache Clear Policy
+
+Manual cache clearing uses the existing `translation_cache` table and does not
+require a schema change.
+
+- `DELETE /api/cache/translations` deletes all `translation_cache` rows.
+- Translation history, pages, chunks, feedback, glossary rows, and user settings
+  are preserved.
+- Cache clearing is a no-op when the table is already empty.
+- New cache entries are created normally by later translation requests when
+  `use_cache=true`.
+
+## 2026-07-10 Manual Translation Edit Persistence
+
+Manual translation edits reuse existing tables and do not require a schema change.
+
+- The edited final page text is stored in `translation_pages.translated_text`.
+- The job-level final text is rebuilt into `translation_jobs.translated_text` by
+  joining completed pages in page order.
+- Each save creates a `translation_feedback` row with
+  `feedback_type='manual_edit'`, `chunk_id=NULL`, the page source text, the
+  previous page translation, and the user-corrected translation.
+- `translation_chunks.translated_text` is not modified because it represents the
+  model/chunk output used for retry and debugging history.
+- `translation_cache` is not modified because cache entries represent model
+  output for a source/model/prompt/options/cache-key combination, not a user's
+  manually edited final text.
+
+## 2026-07-10 Translation History Deletion Feedback Policy
+
+Deleting translation history also deletes related `translation_feedback` rows.
+
+- Deleting one `translation_jobs` row removes feedback rows linked by `job_id`
+  or by any `translation_chunks.id` belonging to that job.
+- Deleting all translation history clears `translation_feedback` as part of the
+  same operation.
+- The foreign keys remain `ON DELETE SET NULL` for schema compatibility, but the
+  application deletes feedback explicitly before deleting the job rows.
+- `translation_cache` is still preserved when translation history is deleted.
+
+## 2026-07-10 Manual Glossary Candidate Persistence
+
+Manual glossary candidate creation reuses the existing `glossary_candidates`
+table and does not require a schema change.
+
+- `source_term` stores the source-language term selected by the user.
+- `suggested_target_term` stores the Korean term selected by the user.
+- `source_text` stores the current page source context.
+- `model_translation` stores the current page translated text.
+- `user_corrected_translation` stores the same current page translated text for
+  manual selection candidates because no full translation edit is required.
+- `status` starts as `pending`; approval creates a `glossary_terms` row and
+  deletes the candidate row. The `approved` status remains a legacy/response
+  status until a future DB constraint migration removes it.
+
 ## 2026-06-30 Page Translation Schema
 
 `[newpage]` input is stored as a page hierarchy:
@@ -336,6 +391,12 @@ erDiagram
 사용자가 직접 원문을 입력하거나 pixiv URL에서 원문을 가져오면 `translation_jobs`에 작업 1건이 생성된다.
 
 긴 텍스트는 내부적으로 여러 chunk로 나뉘며, 각 chunk는 `translation_chunks`에 저장된다.
+
+번역 이력 삭제는 `translation_jobs` row를 영구 삭제하는 방식으로 처리한다.
+연결된 `translation_pages`와 `translation_chunks`는 외래키의 `ON DELETE CASCADE`로
+함께 삭제된다. `translation_feedback`은 분석/개선 데이터 보존을 위해
+`job_id`와 `chunk_id`만 `NULL` 처리하고 row는 유지한다. `translation_cache`는
+번역 조건 기반 중복 방지 캐시이므로 이력 삭제 시 삭제하지 않는다.
 
 ---
 
@@ -720,6 +781,17 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
 현재 chunk의 `source_text`에 `source_term` 또는 `aliases` 중 하나가 실제로 포함된 항목만 prompt에 삽입한다.
 선별된 항목은 `is_required=true`, `priority` 높은 순, `source_term` 길이 긴 순, `source_term` 오름차순으로 정렬한다.
 
+삭제 정책:
+
+```text
+일반 삭제 요청은 is_active=0으로 바꾸는 비활성화로 처리한다.
+영구 삭제는 이미 비활성화된 항목에만 허용하고 glossary_terms row를 실제로 삭제한다.
+활성 항목의 영구 삭제 요청은 거부한다.
+기존 translation_jobs, translation_chunks, translation_cache는 용어 삭제와 함께 제거하지 않는다.
+```
+
+`glossary_terms`를 참조하는 번역 이력 외래키는 없으며 캐시는 선택된 용어의 hash만 저장하므로, 영구 삭제를 위한 스키마 변경은 필요하지 않다.
+
 ---
 
 ### 6.4.3 term_type 예시
@@ -761,7 +833,7 @@ VALUES
 
 ```text
 pending    승인 대기
-approved   glossary_terms 등록 완료
+approved   승인 응답/기존 데이터 호환용 legacy 상태
 rejected   등록하지 않기로 결정
 ```
 
@@ -792,7 +864,8 @@ CREATE TABLE IF NOT EXISTS glossary_candidates (
 
 ```text
 후보 생성 시 기본 상태는 pending이다.
-approve 시 glossary_terms 등록과 후보 status=approved 변경을 한 트랜잭션으로 처리한다.
+approve 시 glossary_terms 등록과 glossary_candidates row 삭제를 한 트랜잭션으로 처리한다.
+API 응답은 기존 호환성을 위해 status=approved 후보 스냅샷을 반환하지만, 승인된 후보 row는 DB에 남기지 않는다.
 approve 중 duplicate/conflict가 발생하면 후보는 pending으로 유지한다.
 reject 시 glossary_terms에는 등록하지 않고 후보 status만 rejected로 변경한다.
 ```

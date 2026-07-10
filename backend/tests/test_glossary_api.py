@@ -103,6 +103,37 @@ def test_glossary_api_patch_and_delete_soft_deactivate(db_session: Session) -> N
     assert deleted.json()["is_active"] is False
 
 
+def test_glossary_api_permanently_deletes_only_inactive_terms(
+    db_session: Session,
+) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        client = TestClient(app)
+        created = client.post(
+            "/api/glossary",
+            json={"source_term": "姫様", "target_term": "공주님"},
+        )
+        term_id = created.json()["id"]
+
+        active_delete = client.delete(f"/api/glossary/{term_id}/permanent")
+        still_listed = client.get("/api/glossary")
+        deactivated = client.delete(f"/api/glossary/{term_id}")
+        permanent_delete = client.delete(f"/api/glossary/{term_id}/permanent")
+        listed_after_delete = client.get("/api/glossary")
+        second_delete = client.delete(f"/api/glossary/{term_id}/permanent")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert active_delete.status_code == 409
+    assert still_listed.json()[0]["id"] == term_id
+    assert deactivated.status_code == 200
+    assert permanent_delete.status_code == 204
+    assert permanent_delete.content == b""
+    assert listed_after_delete.json() == []
+    assert second_delete.status_code == 404
+
+
 def test_glossary_api_import_csv_text_body(db_session: Session) -> None:
     app.dependency_overrides[get_db] = _override_db(db_session)
     csv_text = """source_lang,target_lang,source_term,target_term,term_type,priority,is_required,description,aliases
@@ -143,6 +174,46 @@ def test_glossary_api_import_json_text(db_session: Session) -> None:
     assert imported.json()["imported"] == 1
 
 
+def test_glossary_candidate_api_create_manual_selection(db_session: Session) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        client = TestClient(app)
+        created = client.post(
+            "/api/glossary/candidates",
+            json={
+                "source_lang": "ja",
+                "target_lang": "ko",
+                "source_term": "王都",
+                "suggested_target_term": "왕도",
+                "source_text": "王都の空を見上げた。",
+                "model_translation": "왕도의 하늘을 올려다보았다.",
+                "user_corrected_translation": "왕도의 하늘을 올려다보았다.",
+            },
+        )
+        invalid = client.post(
+            "/api/glossary/candidates",
+            json={
+                "source_lang": "ja",
+                "target_lang": "ko",
+                "source_term": "   ",
+                "suggested_target_term": "왕도",
+                "source_text": "王都の空を見上げた。",
+                "model_translation": "왕도의 하늘을 올려다보았다.",
+                "user_corrected_translation": "왕도의 하늘을 올려다보았다.",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert created.status_code == 201
+    payload = created.json()
+    assert payload["source_term"] == "王都"
+    assert payload["suggested_target_term"] == "왕도"
+    assert payload["status"] == "pending"
+    assert invalid.status_code == 422
+
+
 def test_glossary_candidate_api_approve_and_reject(db_session: Session) -> None:
     service = GlossaryService(db_session)
     approve_candidate = service.create_candidate_from_feedback(
@@ -161,16 +232,19 @@ def test_glossary_candidate_api_approve_and_reject(db_session: Session) -> None:
     )
     assert approve_candidate is not None
     assert reject_candidate is not None
+    approve_candidate_id = approve_candidate.id
+    reject_candidate_id = reject_candidate.id
     app.dependency_overrides[get_db] = _override_db(db_session)
 
     try:
         client = TestClient(app)
         listed = client.get("/api/glossary/candidates")
         approved = client.post(
-            f"/api/glossary/candidates/{approve_candidate.id}/approve",
+            f"/api/glossary/candidates/{approve_candidate_id}/approve",
             json={"term_type": "place", "priority": 80},
         )
-        rejected = client.post(f"/api/glossary/candidates/{reject_candidate.id}/reject")
+        pending_after_approve = client.get("/api/glossary/candidates?status=pending")
+        rejected = client.post(f"/api/glossary/candidates/{reject_candidate_id}/reject")
     finally:
         app.dependency_overrides.clear()
 
@@ -178,6 +252,8 @@ def test_glossary_candidate_api_approve_and_reject(db_session: Session) -> None:
     assert len(listed.json()) == 2
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
+    assert pending_after_approve.status_code == 200
+    assert [candidate["id"] for candidate in pending_after_approve.json()] == [reject_candidate_id]
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "rejected"
 

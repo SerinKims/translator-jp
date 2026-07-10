@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.routes.translate import get_translation_service
@@ -9,6 +9,7 @@ from app.llm.translator import TranslationService, TranslationServiceError
 from app.schemas.translation import (
     PageTranslateRequest,
     TranslationDetailResponse,
+    TranslationEditRequest,
     TranslationHistoryItem,
     TranslationResponse,
 )
@@ -30,6 +31,13 @@ async def list_translations(
     return service.list_translations(limit=limit, offset=offset)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_translations(
+    service: Annotated[HistoryService, Depends(get_history_service)],
+) -> None:
+    service.delete_all_translations()
+
+
 @router.get("/{job_id}", response_model=TranslationDetailResponse)
 async def get_translation_detail(
     job_id: int,
@@ -37,6 +45,38 @@ async def get_translation_detail(
 ) -> TranslationDetailResponse:
     try:
         return service.get_translation_detail(job_id)
+    except HistoryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_translation(
+    job_id: int,
+    service: Annotated[HistoryService, Depends(get_history_service)],
+) -> None:
+    try:
+        service.delete_translation(job_id)
+    except HistoryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.patch(
+    "/{job_id}/pages/{page_index}/translation",
+    response_model=TranslationDetailResponse,
+)
+async def update_page_translation(
+    job_id: int,
+    page_index: int,
+    request: TranslationEditRequest,
+    service: Annotated[HistoryService, Depends(get_history_service)],
+) -> TranslationDetailResponse:
+    try:
+        return service.update_page_translation(
+            job_id,
+            page_index,
+            translated_text=request.translated_text,
+            comment=request.comment,
+        )
     except HistoryServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
@@ -49,6 +89,26 @@ async def retry_chunk(
 ) -> TranslationResponse:
     try:
         return await service.retry_failed_chunk(job_id, chunk_index)
+    except TranslationServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.post(
+    "/{job_id}/pages/{page_index}/chunks/{chunk_index}/retry",
+    response_model=TranslationResponse,
+)
+async def retry_page_chunk(
+    job_id: int,
+    page_index: int,
+    chunk_index: int,
+    service: Annotated[TranslationService, Depends(get_translation_service)],
+) -> TranslationResponse:
+    try:
+        return await service.retry_failed_chunk(
+            job_id,
+            chunk_index,
+            page_index=page_index,
+        )
     except TranslationServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
@@ -71,6 +131,8 @@ async def translate_page(
             use_glossary=request.use_glossary,
             use_cache=request.use_cache,
             stream=request.stream,
+            model_name=request.model_name,
+            prompt_version=request.prompt_version,
             think=request.think,
             options=request.options,
             translate_scope="current_page",

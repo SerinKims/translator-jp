@@ -7,6 +7,8 @@ from pydantic import BaseModel, field_validator
 
 
 class OllamaRequestOptions(BaseModel):
+    model_name: str | None = None
+    prompt_version: str | None = None
     think: str | bool = False
     options: dict[str, Any] | None = None
 
@@ -43,6 +45,18 @@ class PageTranslateRequest(OllamaRequestOptions):
     use_cache: bool = True
     stream: bool = False
     force: bool = False
+
+
+class TranslationEditRequest(BaseModel):
+    translated_text: str
+    comment: str | None = None
+
+    @field_validator("translated_text")
+    @classmethod
+    def validate_translated_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("translated_text must not be empty")
+        return value
 
 
 class TranslationChunkResponse(BaseModel):

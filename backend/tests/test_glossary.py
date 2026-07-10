@@ -9,6 +9,7 @@ from app.services.glossary import (
     GlossaryConflictError,
     GlossaryDuplicateError,
     GlossaryService,
+    GlossaryServiceError,
     build_glossary_context,
     check_glossary_violations,
     make_selected_glossary_hash,
@@ -134,6 +135,57 @@ def test_service_deactivates_glossary_term(db_session: Session) -> None:
     assert service.list_terms(active_only=True) == []
 
 
+def test_repository_permanently_deletes_glossary_term(db_session: Session) -> None:
+    repository = GlossaryRepository(db_session)
+    created = repository.create_term(
+        source_term="姫様",
+        target_term="공주님",
+        source_lang="ja",
+        target_lang="ko",
+        is_active=False,
+    )
+
+    deleted = repository.permanently_delete_term(created.id)
+
+    assert deleted is True
+    assert repository.get_term(created.id) is None
+
+
+def test_service_permanently_deletes_inactive_glossary_term(db_session: Session) -> None:
+    service = GlossaryService(db_session)
+    created = service.create_term(
+        source_term="姫様",
+        target_term="공주님",
+        source_lang="ja",
+        target_lang="ko",
+        is_active=False,
+    )
+
+    service.permanently_delete_term(created.term.id)
+
+    assert service.repository.get_term(created.term.id) is None
+    assert service.list_terms() == []
+
+
+def test_service_rejects_permanent_delete_for_active_term(db_session: Session) -> None:
+    service = GlossaryService(db_session)
+    created = service.create_term(
+        source_term="姫様",
+        target_term="공주님",
+        source_lang="ja",
+        target_lang="ko",
+    )
+
+    try:
+        service.permanently_delete_term(created.term.id)
+    except GlossaryServiceError as exc:
+        assert exc.status_code == 409
+    else:
+        raise AssertionError("active glossary term was permanently deleted")
+
+    assert service.repository.get_term(created.term.id) is not None
+
+
 def test_csv_import_applies_duplicate_and_conflict_policy(db_session: Session) -> None:
     service = GlossaryService(db_session)
     csv_text = """source_lang,target_lang,source_term,target_term,term_type,priority,is_required,description,aliases
@@ -170,7 +222,28 @@ def test_create_candidate_from_feedback(db_session: Session) -> None:
     assert candidate.source_term == "王都"
 
 
-def test_approve_candidate_creates_term_and_updates_status(db_session: Session) -> None:
+def test_create_candidate_from_manual_selection_allows_unchanged_context(
+    db_session: Session,
+) -> None:
+    service = GlossaryService(db_session)
+
+    candidate = service.create_candidate_from_manual_selection(
+        source_lang="ja",
+        target_lang="ko",
+        source_term="王都",
+        suggested_target_term="왕도",
+        source_text="王都の空を見上げた。",
+        model_translation="왕도의 하늘을 올려다보았다.",
+        user_corrected_translation="왕도의 하늘을 올려다보았다.",
+    )
+
+    assert candidate.status == "pending"
+    assert candidate.source_term == "王都"
+    assert candidate.suggested_target_term == "왕도"
+    assert candidate.model_translation == candidate.user_corrected_translation
+
+
+def test_approve_candidate_creates_term_and_deletes_candidate(db_session: Session) -> None:
     service = GlossaryService(db_session)
     candidate = service.create_candidate_from_feedback(
         source_term="王都",
@@ -180,10 +253,12 @@ def test_approve_candidate_creates_term_and_updates_status(db_session: Session) 
         user_corrected_translation="왕도의 하늘을 올려다보았다.",
     )
     assert candidate is not None
+    candidate_id = candidate.id
 
-    approved = service.approve_candidate(candidate.id, term_type="place", priority=80)
+    approved = service.approve_candidate(candidate_id, term_type="place", priority=80)
 
     assert approved.status == "approved"
+    assert service.repository.get_candidate(candidate_id) is None
     terms = service.list_terms()
     assert len(terms) == 1
     assert terms[0].source_term == "王都"

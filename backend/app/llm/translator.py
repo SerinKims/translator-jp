@@ -50,6 +50,8 @@ from app.services.language_detector import (
 MODEL_NAME = "gemma4:26b-a4b-it-q4_K_M"
 PROMPT_VERSION = "translate_ja_ko_v1"
 LITERAL_UNICODE_ESCAPE_RE = re.compile(r"(?:\\u[0-9a-fA-F]{4})+")
+BYTE_TOKEN_SEQUENCE_RE = re.compile(r"(?:<0x[0-9a-fA-F]{2}>)+")
+BYTE_TOKEN_RE = re.compile(r"<0x([0-9a-fA-F]{2})>")
 CHUNK_NOT_FOUND_MESSAGE = "Translation chunk not found."
 CHUNK_RETRY_NOT_FAILED_MESSAGE = "Only failed chunks can be retried."
 CHUNK_RETRY_AMBIGUOUS_MESSAGE = (
@@ -81,6 +83,8 @@ UNKNOWN_SOURCE_LANGUAGE_MESSAGE = "원문 언어를 감지하지 못했습니다
 
 @dataclass(frozen=True)
 class TranslationRunOptions:
+    model_name: str
+    prompt_version: str
     source_lang: str
     target_lang: str
     style: str
@@ -130,6 +134,8 @@ class TranslationService:
 
     async def translate_text(self, request: TranslationRequest) -> TranslationResponse:
         run_options = TranslationRunOptions(
+            model_name=request.model_name or self.model_name,
+            prompt_version=request.prompt_version or self.prompt_version,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             style=request.style,
@@ -151,8 +157,9 @@ class TranslationService:
         prompt_version = self.prompt_loader.select_prompt_version(
             source_lang=run_options.source_lang,
             target_lang=run_options.target_lang,
-            prompt_version=self.prompt_version,
+            prompt_version=run_options.prompt_version,
         )
+        run_options = replace(run_options, prompt_version=prompt_version)
         job = TranslationRepository(self.db).create_job(
             original_text=request.text,
             source_language=run_options.source_lang,
@@ -165,7 +172,7 @@ class TranslationService:
             source_author=None,
             source_work_id=None,
             source_fetched_at=None,
-            model_name=self.model_name,
+            model_name=run_options.model_name,
             prompt_version=prompt_version,
             ollama_think=request.think,
             ollama_options=request.options,
@@ -194,12 +201,16 @@ class TranslationService:
         translate_scope: str = "first_page",
         page_index: int = 0,
         force: bool = False,
+        model_name: str | None = None,
+        prompt_version: str | None = None,
     ) -> TranslationResponse:
         job = TranslationRepository(self.db).get_job(job_id)
         if job is None:
             raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
 
         run_options = TranslationRunOptions(
+            model_name=model_name or job.model_name or self.model_name,
+            prompt_version=prompt_version or job.prompt_version or self.prompt_version,
             source_lang=source_lang,
             target_lang=target_lang,
             style=style,
@@ -224,11 +235,19 @@ class TranslationService:
             target_language=run_options.target_lang,
             detected_lang=detected_lang,
             language_confidence=language_confidence,
+            model_name=run_options.model_name,
+            prompt_version=run_options.prompt_version,
         )
 
         return await self._translate_job(job=job, run_options=run_options)
 
-    async def retry_failed_chunk(self, job_id: int, chunk_index: int) -> TranslationResponse:
+    async def retry_failed_chunk(
+        self,
+        job_id: int,
+        chunk_index: int,
+        *,
+        page_index: int | None = None,
+    ) -> TranslationResponse:
         started_at = time.perf_counter()
         translation_repository = TranslationRepository(self.db)
         chunk_repository = ChunkRepository(self.db)
@@ -239,9 +258,18 @@ class TranslationService:
         if job is None:
             raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
 
+        page = None
+        if page_index is not None:
+            page = page_repository.get_page(job_id=job.id, page_index=page_index)
+            if page is None:
+                raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
+
         matching_chunks = [
             chunk
-            for chunk in chunk_repository.list_chunks(job_id=job.id)
+            for chunk in chunk_repository.list_chunks(
+                job_id=job.id,
+                page_id=page.id if page is not None else None,
+            )
             if chunk.chunk_index == chunk_index
         ]
         if not matching_chunks:
@@ -254,7 +282,7 @@ class TranslationService:
             raise TranslationServiceError(CHUNK_RETRY_AMBIGUOUS_MESSAGE, status_code=409)
 
         chunk = failed_chunks[0]
-        page = page_repository.get_page_by_id(chunk.page_id)
+        page = page or page_repository.get_page_by_id(chunk.page_id)
         if page is None:
             raise TranslationServiceError(JOB_NOT_FOUND_MESSAGE, status_code=404)
 
@@ -312,7 +340,7 @@ class TranslationService:
         cached = cache_service.get_cached_translation(cache_key=cache_key)
         if cached is not None:
             cache_hit = True
-            translated_text = self._restore_literal_unicode_escapes(cached.translated_text)
+            translated_text = self._normalize_translation_text(cached.translated_text)
             chunk_repository.update_status(
                 job_id=job.id,
                 page_id=page.id,
@@ -332,8 +360,9 @@ class TranslationService:
                 selected_glossary_terms=selected_glossary_terms,
             )
             try:
-                result = await self.ollama_client.chat(
+                result = await self._chat(
                     messages,
+                    model_name=job.model_name,
                     options=run_options.options,
                     think=run_options.think,
                 )
@@ -437,8 +466,9 @@ class TranslationService:
         prompt_version = self.prompt_loader.select_prompt_version(
             source_lang=run_options.source_lang,
             target_lang=run_options.target_lang,
-            prompt_version=self.prompt_version,
+            prompt_version=run_options.prompt_version,
         )
+        run_options = replace(run_options, prompt_version=prompt_version)
         system_prompt = self.prompt_loader.load(
             prompt_version,
             source_lang=run_options.source_lang,
@@ -462,6 +492,7 @@ class TranslationService:
             status="running",
             source_language=run_options.source_lang,
             target_language=run_options.target_lang,
+            model_name=run_options.model_name,
             prompt_version=prompt_version,
         )
 
@@ -546,7 +577,7 @@ class TranslationService:
             total_pages=len(all_pages),
             has_next_page=current_page_index < len(all_pages) - 1,
             translated_text=translated_text,
-            model=self.model_name,
+            model=run_options.model_name,
             prompt_version=prompt_version,
             style=run_options.style,
             elapsed_ms=elapsed_ms,
@@ -575,7 +606,6 @@ class TranslationService:
         )
         page_repository.update_page(page.id, status="running", total_chunks=len(chunks))
 
-        translated_chunks: list[tuple[int, str]] = []
         chunk_responses: list[TranslationChunkResponse] = []
         failed_messages: list[str] = []
         cache_hit = False
@@ -610,7 +640,7 @@ class TranslationService:
                 source_text=chunk["source_text"],
                 source_lang=run_options.source_lang,
                 target_lang=run_options.target_lang,
-                model_name=self.model_name,
+                model_name=run_options.model_name,
                 prompt_version=prompt_version,
                 style=run_options.style,
                 honorific_policy=run_options.honorific_policy,
@@ -621,7 +651,7 @@ class TranslationService:
                 cached = cache_service.get_cached_translation(cache_key=cache_key)
                 if cached is not None:
                     cache_hit = True
-                    translated_text = self._restore_literal_unicode_escapes(cached.translated_text)
+                    translated_text = self._normalize_translation_text(cached.translated_text)
                     chunk_repository.update_status(
                         job_id=job.id,
                         page_id=page.id,
@@ -630,7 +660,6 @@ class TranslationService:
                         translated_text=translated_text,
                         elapsed_ms=0,
                     )
-                    translated_chunks.append((chunk["index"], translated_text))
                     chunk_responses.append(
                         TranslationChunkResponse(
                             index=chunk["index"],
@@ -650,8 +679,9 @@ class TranslationService:
                 selected_glossary_terms=selected_glossary_terms,
             )
             try:
-                result = await self.ollama_client.chat(
+                result = await self._chat(
                     messages,
+                    model_name=run_options.model_name,
                     options=run_options.options,
                     think=run_options.think,
                 )
@@ -677,14 +707,13 @@ class TranslationService:
                         translated_text=translated_text,
                         source_lang=run_options.source_lang,
                         target_lang=run_options.target_lang,
-                        model_name=self.model_name,
+                        model_name=run_options.model_name,
                         prompt_version=prompt_version,
                         style=run_options.style,
                         honorific_policy=run_options.honorific_policy,
                         preserve_names=run_options.preserve_names,
                         selected_glossary_hash=selected_glossary_hash,
                     )
-                translated_chunks.append((chunk["index"], translated_text))
                 chunk_responses.append(
                     TranslationChunkResponse(
                         index=chunk["index"],
@@ -713,9 +742,15 @@ class TranslationService:
                     )
                 )
 
-        translated_text = self._merge_translated_chunks(translated_chunks)
-        completed_count = len(translated_chunks)
-        failed_count = len(failed_messages)
+        stored_chunks = chunk_repository.list_chunks(job_id=job.id, page_id=page.id)
+        completed_translations = [
+            (stored_chunk.chunk_index, stored_chunk.translated_text)
+            for stored_chunk in stored_chunks
+            if stored_chunk.status == "completed" and stored_chunk.translated_text is not None
+        ]
+        translated_text = self._merge_translated_chunks(completed_translations)
+        completed_count = len(completed_translations)
+        failed_count = sum(1 for stored_chunk in stored_chunks if stored_chunk.status == "failed")
         page_repository.update_page(
             page.id,
             translated_text=translated_text,
@@ -771,6 +806,30 @@ class TranslationService:
             for chunk in chunks
         ]
 
+    async def _chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        model_name: str,
+        options: dict[str, Any] | None,
+        think: str | bool,
+    ) -> Any:
+        try:
+            return await self.ollama_client.chat(
+                messages,
+                model=model_name,
+                options=options,
+                think=think,
+            )
+        except TypeError as exc:
+            if "model" not in str(exc):
+                raise
+            return await self.ollama_client.chat(
+                messages,
+                options=options,
+                think=think,
+            )
+
     def _run_options_from_job(
         self,
         job: TranslationJob,
@@ -778,6 +837,8 @@ class TranslationService:
         page_index: int,
     ) -> TranslationRunOptions:
         return TranslationRunOptions(
+            model_name=job.model_name,
+            prompt_version=job.prompt_version,
             source_lang=job.source_language,
             target_lang=job.target_language,
             style=job.style,
@@ -856,6 +917,8 @@ class TranslationService:
 
     def _validate_request(self, request: TranslationRequest) -> None:
         run_options = TranslationRunOptions(
+            model_name=request.model_name or self.model_name,
+            prompt_version=request.prompt_version or self.prompt_version,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             style=request.style,
@@ -959,8 +1022,22 @@ class TranslationService:
         text = raw_text.strip()
         for prefix in ("번역문:", "번역:", "Translation:", "Translated text:"):
             if text.startswith(prefix):
-                return self._restore_literal_unicode_escapes(text[len(prefix) :].strip())
-        return self._restore_literal_unicode_escapes(text)
+                return self._normalize_translation_text(text[len(prefix) :].strip())
+        return self._normalize_translation_text(text)
+
+    def _normalize_translation_text(self, text: str) -> str:
+        text = self._restore_literal_unicode_escapes(text)
+        if "<0x" not in text:
+            return text
+
+        def restore_match(match: re.Match[str]) -> str:
+            encoded = bytes(int(hex_byte, 16) for hex_byte in BYTE_TOKEN_RE.findall(match.group(0)))
+            try:
+                return encoded.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                return match.group(0)
+
+        return BYTE_TOKEN_SEQUENCE_RE.sub(restore_match, text)
 
     def _restore_literal_unicode_escapes(self, text: str) -> str:
         if "\\u" not in text:

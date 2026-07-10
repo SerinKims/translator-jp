@@ -99,6 +99,7 @@ class OllamaClient:
         self,
         messages: list[dict[str, str]],
         *,
+        model: str | None = None,
         options: dict[str, Any] | None = None,
         think: OllamaThink | None = None,
     ) -> OllamaChatResult:
@@ -119,6 +120,7 @@ class OllamaClient:
                 asyncio.to_thread(
                     self._chat_blocking,
                     messages,
+                    model or self.model,
                     resolved_options,
                     resolved_think,
                 ),
@@ -133,7 +135,11 @@ class OllamaClient:
         except OllamaClientError:
             raise
         except Exception as exc:
-            raise self._normalize_runtime_error(exc, started_at=started_at) from exc
+            raise self._normalize_runtime_error(
+                exc,
+                started_at=started_at,
+                model=model or self.model,
+            ) from exc
 
         content = self._extract_content(result.raw_response)
         if not content:
@@ -153,12 +159,13 @@ class OllamaClient:
     def _chat_blocking(
         self,
         messages: list[dict[str, str]],
+        model: str,
         options: dict[str, Any] | None,
         think: OllamaThink | None,
     ) -> OllamaChatResult:
         runtime = self._load_runtime()
         response = runtime.chat(
-            model=self.model,
+            model=model,
             messages=messages,
             think=think,
             options=options,
@@ -166,7 +173,7 @@ class OllamaClient:
         raw_response = self._normalize_response(response)
         return OllamaChatResult(
             content="",
-            model=self._response_model(raw_response),
+            model=self._response_model(raw_response, fallback=model),
             elapsed_ms=0,
             raw_response=raw_response,
         )
@@ -213,9 +220,9 @@ class OllamaClient:
         except (TypeError, ValueError):
             return {"response": response}
 
-    def _response_model(self, payload: dict[str, Any]) -> str:
+    def _response_model(self, payload: dict[str, Any], *, fallback: str | None = None) -> str:
         model = payload.get("model")
-        return model if isinstance(model, str) and model else self.model
+        return model if isinstance(model, str) and model else fallback or self.model
 
     def _validate_options(self, options: dict[str, Any] | None) -> dict[str, Any] | None:
         if options is not None and not isinstance(options, dict):
@@ -227,13 +234,19 @@ class OllamaClient:
             raise OllamaClientError(OLLAMA_INVALID_THINK_MESSAGE, code="invalid_think")
         return think
 
-    def _normalize_runtime_error(self, exc: Exception, *, started_at: float) -> OllamaClientError:
+    def _normalize_runtime_error(
+        self,
+        exc: Exception,
+        *,
+        started_at: float,
+        model: str,
+    ) -> OllamaClientError:
         status_code = getattr(exc, "status_code", None)
         message = getattr(exc, "error", None) or str(exc) or exc.__class__.__name__
         code = "ollama_error"
         if status_code == 404 or "not found" in message.lower():
             code = "model_not_found"
-            message = ollama_model_not_found_message(self.model)
+            message = ollama_model_not_found_message(model)
 
         return OllamaClientError(
             message,

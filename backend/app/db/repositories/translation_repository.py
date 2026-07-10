@@ -4,10 +4,10 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.orm import Session
 
-from app.db.models import TranslationJob
+from app.db.models import TranslationChunk, TranslationFeedback, TranslationJob
 
 
 class TranslationRepository:
@@ -88,6 +88,33 @@ class TranslationRepository:
         )
         return list(self.db.scalars(statement))
 
+    def delete_job(self, job_id: int) -> bool:
+        job = self.get_job(job_id)
+        if job is None:
+            return False
+
+        chunk_ids = select(TranslationChunk.id).where(TranslationChunk.job_id == job_id)
+        self.db.execute(
+            delete(TranslationFeedback).where(
+                or_(
+                    TranslationFeedback.job_id == job_id,
+                    TranslationFeedback.chunk_id.in_(chunk_ids),
+                )
+            )
+        )
+        self.db.delete(job)
+        self.db.commit()
+        return True
+
+    def delete_all_jobs(self) -> int:
+        jobs = list(self.db.scalars(select(TranslationJob)))
+        deleted_count = len(jobs)
+        self.db.execute(delete(TranslationFeedback))
+        for job in jobs:
+            self.db.delete(job)
+        self.db.commit()
+        return deleted_count
+
     def update_job(
         self,
         job_id: int,
@@ -104,6 +131,7 @@ class TranslationRepository:
         target_language: str | None = None,
         detected_lang: str | None = None,
         language_confidence: float | None = None,
+        model_name: str | None = None,
         prompt_version: str | None = None,
     ) -> TranslationJob | None:
         job = self.get_job(job_id)
@@ -130,6 +158,8 @@ class TranslationRepository:
             job.detected_lang = detected_lang
         if language_confidence is not None:
             job.language_confidence = language_confidence
+        if model_name is not None:
+            job.model_name = model_name
         if prompt_version is not None:
             job.prompt_version = prompt_version
         if clear_error_message:

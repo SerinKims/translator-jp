@@ -28,6 +28,13 @@ async def fetch_pixiv(
         return await service.fetch_pixiv(
             url=request.url,
             translate_after_fetch=request.translate_after_fetch,
+            source_lang=request.source_lang,
+            target_lang=request.target_lang,
+            style=request.style,
+            honorific_policy=request.honorific_policy,
+            preserve_names=request.preserve_names,
+            model_name=request.model_name,
+            prompt_version=request.prompt_version,
             think=request.think,
             options=request.options,
         )
@@ -53,6 +60,8 @@ async def fetch_and_translate_pixiv(
             use_glossary=request.use_glossary,
             use_cache=request.use_cache,
             stream=request.stream,
+            model_name=request.model_name,
+            prompt_version=request.prompt_version,
             think=request.think,
             options=request.options,
         )

@@ -1,3 +1,7 @@
 .pyc*
 __pycache__
 .env
+node_modules/
+.next/
+.pnpm-store/
+next-dev.*.log

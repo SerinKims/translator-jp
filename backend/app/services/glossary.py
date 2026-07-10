@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
-import csv
 from dataclasses import dataclass
 from io import StringIO
 from typing import Any, Iterable
@@ -11,11 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.db.repositories.glossary_repository import GlossaryRepository, parse_aliases
 
-
 MAX_GLOSSARY_TERMS_PER_CHUNK = 30
 MAX_GLOSSARY_CONTEXT_CHARS = 1500
 GLOSSARY_CONTEXT_HEADER = "[용어집 - 반드시 지킬 것]"
 TERM_NOT_FOUND_MESSAGE = "용어를 찾을 수 없습니다."
+ACTIVE_TERM_PERMANENT_DELETE_MESSAGE = "활성 용어는 영구 삭제할 수 없습니다. 먼저 비활성화해주세요."
 CANDIDATE_NOT_FOUND_MESSAGE = "후보 용어를 찾을 수 없습니다."
 DUPLICATE_TERM_MESSAGE = "이미 같은 용어가 등록되어 있습니다."
 CONFLICT_TERM_MESSAGE = "같은 원어에 다른 번역어가 이미 등록되어 있습니다."
@@ -69,6 +69,21 @@ class GlossaryImportResult:
     conflicts: list[GlossaryImportConflict]
 
 
+@dataclass(frozen=True)
+class GlossaryCandidateSnapshot:
+    id: int
+    source_lang: str
+    target_lang: str
+    source_term: str
+    suggested_target_term: str
+    source_text: str
+    model_translation: str
+    user_corrected_translation: str
+    status: str
+    created_at: Any
+    updated_at: Any
+
+
 class GlossaryServiceError(RuntimeError):
     def __init__(self, message: str, *, status_code: int = 400) -> None:
         super().__init__(message)
@@ -107,6 +122,7 @@ class GlossaryService:
     def create_term(
         self,
         *,
+        glossary_set_id: int | None = None,
         source_lang: str,
         target_lang: str,
         source_term: str,
@@ -116,9 +132,11 @@ class GlossaryService:
         aliases: list[str] | None = None,
         priority: int = 0,
         is_required: bool = True,
+        is_case_sensitive: bool = False,
         is_active: bool = True,
     ) -> GlossaryCreateResult:
         existing = self._find_duplicate_or_conflict(
+            glossary_set_id=glossary_set_id,
             source_lang=source_lang,
             target_lang=target_lang,
             source_term=source_term,
@@ -128,6 +146,7 @@ class GlossaryService:
             return GlossaryCreateResult(term=existing, created=False)
 
         term = self.repository.create_term(
+            glossary_set_id=glossary_set_id,
             source_lang=source_lang,
             target_lang=target_lang,
             source_term=source_term,
@@ -137,6 +156,7 @@ class GlossaryService:
             aliases=aliases or [],
             priority=priority,
             is_required=is_required,
+            is_case_sensitive=is_case_sensitive,
             is_active=is_active,
         )
         return GlossaryCreateResult(term=term, created=True)
@@ -146,11 +166,13 @@ class GlossaryService:
         if term is None:
             raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
 
+        glossary_set_id = changes.get("glossary_set_id", term.glossary_set_id)
         source_lang = changes.get("source_lang", term.source_lang)
         target_lang = changes.get("target_lang", term.target_lang)
         source_term = changes.get("source_term", term.source_term)
         target_term = changes.get("target_term", term.target_term)
         self._find_duplicate_or_conflict(
+            glossary_set_id=glossary_set_id,
             source_lang=source_lang,
             target_lang=target_lang,
             source_term=source_term,
@@ -168,6 +190,18 @@ class GlossaryService:
         if term is None:
             raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
         return term
+
+    def permanently_delete_term(self, term_id: int) -> None:
+        term = self.repository.get_term(term_id)
+        if term is None:
+            raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
+        if bool(term.is_active):
+            raise GlossaryServiceError(
+                ACTIVE_TERM_PERMANENT_DELETE_MESSAGE,
+                status_code=409,
+            )
+        if not self.repository.permanently_delete_term(term_id):
+            raise GlossaryServiceError(TERM_NOT_FOUND_MESSAGE, status_code=404)
 
     def import_csv_text(self, text: str) -> GlossaryImportResult:
         if not text.strip():
@@ -230,15 +264,38 @@ class GlossaryService:
             user_corrected_translation=user_corrected_translation,
         )
 
+    def create_candidate_from_manual_selection(
+        self,
+        *,
+        source_lang: str = "ja",
+        target_lang: str = "ko",
+        source_term: str,
+        suggested_target_term: str,
+        source_text: str,
+        model_translation: str,
+        user_corrected_translation: str,
+    ) -> Any:
+        return self.repository.create_candidate(
+            source_lang=source_lang,
+            target_lang=target_lang,
+            source_term=source_term,
+            suggested_target_term=suggested_target_term,
+            source_text=source_text,
+            model_translation=model_translation,
+            user_corrected_translation=user_corrected_translation,
+        )
+
     def approve_candidate(
         self,
         candidate_id: int,
         *,
+        glossary_set_id: int | None = None,
         term_type: str = "common",
         description: str | None = None,
         aliases: list[str] | None = None,
         priority: int = 0,
         is_required: bool = True,
+        is_case_sensitive: bool = False,
     ) -> Any:
         candidate = self.repository.get_candidate(candidate_id)
         if candidate is None:
@@ -247,14 +304,17 @@ class GlossaryService:
             raise GlossaryServiceError(CANDIDATE_NOT_PENDING_MESSAGE, status_code=400)
 
         self._find_duplicate_or_conflict(
+            glossary_set_id=glossary_set_id,
             source_lang=candidate.source_lang,
             target_lang=candidate.target_lang,
             source_term=candidate.source_term,
             target_term=candidate.suggested_target_term,
             raise_duplicate=True,
         )
+        approved_snapshot = _candidate_snapshot(candidate, status="approved")
         try:
             self.repository.create_term(
+                glossary_set_id=glossary_set_id,
                 source_lang=candidate.source_lang,
                 target_lang=candidate.target_lang,
                 source_term=candidate.source_term,
@@ -264,20 +324,18 @@ class GlossaryService:
                 aliases=aliases or [],
                 priority=priority,
                 is_required=is_required,
+                is_case_sensitive=is_case_sensitive,
                 is_active=True,
                 commit=False,
             )
-            self.repository.update_candidate_status(
-                candidate_id,
-                status="approved",
-                commit=False,
-            )
+            deleted = self.repository.delete_candidate(candidate_id, commit=False)
+            if not deleted:
+                raise GlossaryServiceError(CANDIDATE_NOT_FOUND_MESSAGE, status_code=404)
             self.db.commit()
-            self.db.refresh(candidate)
         except Exception:
             self.db.rollback()
             raise
-        return candidate
+        return approved_snapshot
 
     def reject_candidate(self, candidate_id: int) -> Any:
         candidate = self.repository.update_candidate_status(candidate_id, status="rejected")
@@ -306,6 +364,7 @@ class GlossaryService:
     def _find_duplicate_or_conflict(
         self,
         *,
+        glossary_set_id: int | None = None,
         source_lang: str,
         target_lang: str,
         source_term: str,
@@ -314,6 +373,7 @@ class GlossaryService:
         raise_duplicate: bool = False,
     ) -> Any | None:
         matches = self.repository.find_terms_by_source(
+            glossary_set_id=glossary_set_id,
             source_lang=source_lang,
             target_lang=target_lang,
             source_term=source_term,
@@ -365,6 +425,22 @@ def select_glossary_terms_for_text(
 
     selected.sort(key=_selection_sort_key)
     return selected[:max_terms]
+
+
+def _candidate_snapshot(candidate: Any, *, status: str) -> GlossaryCandidateSnapshot:
+    return GlossaryCandidateSnapshot(
+        id=candidate.id,
+        source_lang=candidate.source_lang,
+        target_lang=candidate.target_lang,
+        source_term=candidate.source_term,
+        suggested_target_term=candidate.suggested_target_term,
+        source_text=candidate.source_text,
+        model_translation=candidate.model_translation,
+        user_corrected_translation=candidate.user_corrected_translation,
+        status=status,
+        created_at=candidate.created_at,
+        updated_at=candidate.updated_at,
+    )
 
 
 def build_glossary_context(
@@ -523,6 +599,7 @@ def _sha256_hex(value: str) -> str:
 
 def _csv_row_to_payload(row: dict[str, str | None]) -> dict[str, Any]:
     return {
+        "glossary_set_id": _parse_optional_int(_clean_csv_value(row.get("glossary_set_id"))),
         "source_lang": _clean_csv_value(row.get("source_lang")) or "ja",
         "target_lang": _clean_csv_value(row.get("target_lang")) or "ko",
         "source_term": _required_csv_value(row, "source_term"),
@@ -532,6 +609,10 @@ def _csv_row_to_payload(row: dict[str, str | None]) -> dict[str, Any]:
         "is_required": _parse_bool(_clean_csv_value(row.get("is_required")), default=True),
         "description": _clean_csv_value(row.get("description")),
         "aliases": _parse_alias_csv(_clean_csv_value(row.get("aliases"))),
+        "is_case_sensitive": _parse_bool(
+            _clean_csv_value(row.get("is_case_sensitive")),
+            default=False,
+        ),
     }
 
 
@@ -556,6 +637,18 @@ def _parse_int(value: str | None, *, default: int) -> int:
         return int(value)
     except ValueError as exc:
         raise GlossaryServiceError("CSV의 priority 값은 정수여야 합니다.", status_code=400) from exc
+
+
+def _parse_optional_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise GlossaryServiceError(
+            "CSV glossary_set_id value must be an integer.",
+            status_code=400,
+        ) from exc
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:

@@ -47,6 +47,15 @@ def test_global_ja_default_falls_back_to_language_pair_default() -> None:
     )
 
 
+def test_load_without_prompt_version_uses_language_pair_default() -> None:
+    loader = PromptLoader()
+
+    prompt = loader.load(source_lang="en", target_lang="ko")
+
+    assert prompt.strip()
+    assert loader.select_prompt_version(source_lang="en", target_lang="ko") == "translate_en_ko_v1"
+
+
 def test_unsupported_language_pair_returns_clear_error() -> None:
     loader = PromptLoader()
 
