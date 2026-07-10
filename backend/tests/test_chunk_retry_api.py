@@ -183,9 +183,7 @@ def test_retry_failed_chunk_by_page_selects_exact_chunk(db_session: Session) -> 
     )
 
     try:
-        response = TestClient(app).post(
-            f"/api/translations/{job.id}/pages/1/chunks/0/retry"
-        )
+        response = TestClient(app).post(f"/api/translations/{job.id}/pages/1/chunks/0/retry")
     finally:
         app.dependency_overrides.clear()
 
@@ -211,9 +209,7 @@ def test_retry_failed_chunk_by_page_rejects_missing_page(db_session: Session) ->
     app.dependency_overrides[get_db] = _override_db(db_session)
 
     try:
-        response = TestClient(app).post(
-            f"/api/translations/{job.id}/pages/99/chunks/1/retry"
-        )
+        response = TestClient(app).post(f"/api/translations/{job.id}/pages/99/chunks/1/retry")
     finally:
         app.dependency_overrides.clear()
 
