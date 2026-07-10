@@ -40,7 +40,8 @@ table and does not require a schema change.
 - `user_corrected_translation` stores the same current page translated text for
   manual selection candidates because no full translation edit is required.
 - `status` starts as `pending`; approval creates a `glossary_terms` row and
-  changes the candidate to `approved`.
+  deletes the candidate row. The `approved` status remains a legacy/response
+  status until a future DB constraint migration removes it.
 
 ## 2026-06-30 Page Translation Schema
 
@@ -820,7 +821,7 @@ VALUES
 
 ```text
 pending    승인 대기
-approved   glossary_terms 등록 완료
+approved   승인 응답/기존 데이터 호환용 legacy 상태
 rejected   등록하지 않기로 결정
 ```
 
@@ -851,7 +852,8 @@ CREATE TABLE IF NOT EXISTS glossary_candidates (
 
 ```text
 후보 생성 시 기본 상태는 pending이다.
-approve 시 glossary_terms 등록과 후보 status=approved 변경을 한 트랜잭션으로 처리한다.
+approve 시 glossary_terms 등록과 glossary_candidates row 삭제를 한 트랜잭션으로 처리한다.
+API 응답은 기존 호환성을 위해 status=approved 후보 스냅샷을 반환하지만, 승인된 후보 row는 DB에 남기지 않는다.
 approve 중 duplicate/conflict가 발생하면 후보는 pending으로 유지한다.
 reject 시 glossary_terms에는 등록하지 않고 후보 status만 rejected로 변경한다.
 ```

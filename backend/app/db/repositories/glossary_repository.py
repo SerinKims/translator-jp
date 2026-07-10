@@ -252,6 +252,17 @@ class GlossaryRepository:
             self.db.flush()
         return candidate
 
+    def delete_candidate(self, candidate_id: int, *, commit: bool = True) -> bool:
+        candidate = self.get_candidate(candidate_id)
+        if candidate is None:
+            return False
+        self.db.delete(candidate)
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
+        return True
+
     def _dump_aliases(self, aliases: list[str]) -> str:
         cleaned = [alias for alias in aliases if alias]
         return json.dumps(cleaned, ensure_ascii=False)

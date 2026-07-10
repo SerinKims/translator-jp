@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.db.models import GlossaryCandidate, GlossaryTerm
+from app.db.models import GlossaryTerm
 from app.db.repositories.glossary_repository import parse_aliases
 from app.services.glossary import GlossaryImportResult
 
@@ -211,9 +212,7 @@ def glossary_import_to_response(result: GlossaryImportResult) -> GlossaryImportR
     )
 
 
-def glossary_candidate_to_response(
-    candidate: GlossaryCandidate,
-) -> GlossaryCandidateResponse:
+def glossary_candidate_to_response(candidate: Any) -> GlossaryCandidateResponse:
     return GlossaryCandidateResponse(
         id=candidate.id,
         source_lang=candidate.source_lang,

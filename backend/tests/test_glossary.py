@@ -243,7 +243,7 @@ def test_create_candidate_from_manual_selection_allows_unchanged_context(
     assert candidate.model_translation == candidate.user_corrected_translation
 
 
-def test_approve_candidate_creates_term_and_updates_status(db_session: Session) -> None:
+def test_approve_candidate_creates_term_and_deletes_candidate(db_session: Session) -> None:
     service = GlossaryService(db_session)
     candidate = service.create_candidate_from_feedback(
         source_term="王都",
@@ -253,10 +253,12 @@ def test_approve_candidate_creates_term_and_updates_status(db_session: Session) 
         user_corrected_translation="왕도의 하늘을 올려다보았다.",
     )
     assert candidate is not None
+    candidate_id = candidate.id
 
-    approved = service.approve_candidate(candidate.id, term_type="place", priority=80)
+    approved = service.approve_candidate(candidate_id, term_type="place", priority=80)
 
     assert approved.status == "approved"
+    assert service.repository.get_candidate(candidate_id) is None
     terms = service.list_terms()
     assert len(terms) == 1
     assert terms[0].source_term == "王都"

@@ -69,6 +69,21 @@ class GlossaryImportResult:
     conflicts: list[GlossaryImportConflict]
 
 
+@dataclass(frozen=True)
+class GlossaryCandidateSnapshot:
+    id: int
+    source_lang: str
+    target_lang: str
+    source_term: str
+    suggested_target_term: str
+    source_text: str
+    model_translation: str
+    user_corrected_translation: str
+    status: str
+    created_at: Any
+    updated_at: Any
+
+
 class GlossaryServiceError(RuntimeError):
     def __init__(self, message: str, *, status_code: int = 400) -> None:
         super().__init__(message)
@@ -296,6 +311,7 @@ class GlossaryService:
             target_term=candidate.suggested_target_term,
             raise_duplicate=True,
         )
+        approved_snapshot = _candidate_snapshot(candidate, status="approved")
         try:
             self.repository.create_term(
                 glossary_set_id=glossary_set_id,
@@ -312,17 +328,14 @@ class GlossaryService:
                 is_active=True,
                 commit=False,
             )
-            self.repository.update_candidate_status(
-                candidate_id,
-                status="approved",
-                commit=False,
-            )
+            deleted = self.repository.delete_candidate(candidate_id, commit=False)
+            if not deleted:
+                raise GlossaryServiceError(CANDIDATE_NOT_FOUND_MESSAGE, status_code=404)
             self.db.commit()
-            self.db.refresh(candidate)
         except Exception:
             self.db.rollback()
             raise
-        return candidate
+        return approved_snapshot
 
     def reject_candidate(self, candidate_id: int) -> Any:
         candidate = self.repository.update_candidate_status(candidate_id, status="rejected")
@@ -412,6 +425,22 @@ def select_glossary_terms_for_text(
 
     selected.sort(key=_selection_sort_key)
     return selected[:max_terms]
+
+
+def _candidate_snapshot(candidate: Any, *, status: str) -> GlossaryCandidateSnapshot:
+    return GlossaryCandidateSnapshot(
+        id=candidate.id,
+        source_lang=candidate.source_lang,
+        target_lang=candidate.target_lang,
+        source_term=candidate.source_term,
+        suggested_target_term=candidate.suggested_target_term,
+        source_text=candidate.source_text,
+        model_translation=candidate.model_translation,
+        user_corrected_translation=candidate.user_corrected_translation,
+        status=status,
+        created_at=candidate.created_at,
+        updated_at=candidate.updated_at,
+    )
 
 
 def build_glossary_context(

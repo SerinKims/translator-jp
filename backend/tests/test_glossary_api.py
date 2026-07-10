@@ -232,16 +232,19 @@ def test_glossary_candidate_api_approve_and_reject(db_session: Session) -> None:
     )
     assert approve_candidate is not None
     assert reject_candidate is not None
+    approve_candidate_id = approve_candidate.id
+    reject_candidate_id = reject_candidate.id
     app.dependency_overrides[get_db] = _override_db(db_session)
 
     try:
         client = TestClient(app)
         listed = client.get("/api/glossary/candidates")
         approved = client.post(
-            f"/api/glossary/candidates/{approve_candidate.id}/approve",
+            f"/api/glossary/candidates/{approve_candidate_id}/approve",
             json={"term_type": "place", "priority": 80},
         )
-        rejected = client.post(f"/api/glossary/candidates/{reject_candidate.id}/reject")
+        pending_after_approve = client.get("/api/glossary/candidates?status=pending")
+        rejected = client.post(f"/api/glossary/candidates/{reject_candidate_id}/reject")
     finally:
         app.dependency_overrides.clear()
 
@@ -249,6 +252,8 @@ def test_glossary_candidate_api_approve_and_reject(db_session: Session) -> None:
     assert len(listed.json()) == 2
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
+    assert pending_after_approve.status_code == 200
+    assert [candidate["id"] for candidate in pending_after_approve.json()] == [reject_candidate_id]
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "rejected"
 

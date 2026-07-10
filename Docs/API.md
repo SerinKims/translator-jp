@@ -582,9 +582,9 @@ POST /api/glossary/candidates/{candidate_id}/approve
 POST /api/glossary/candidates/{candidate_id}/reject
 ```
 
-후보 상태는 `pending`, `approved`, `rejected`만 허용한다.
+후보 상태는 `pending`, `approved`, `rejected`만 허용한다. `approved`는 승인 응답과 기존 데이터 호환용 상태이다.
 
-Approve는 후보를 `glossary_terms`에 등록하고 후보 상태를 `approved`로 바꾸는 작업을 한 트랜잭션으로 처리한다. 등록 중 duplicate/conflict가 발생하면 409를 반환하고 후보는 `pending`으로 남는다. Reject는 용어를 등록하지 않고 후보 상태만 `rejected`로 변경한다.
+Approve는 후보를 `glossary_terms`에 등록하고 `glossary_candidates` row를 삭제하는 작업을 한 트랜잭션으로 처리한다. 응답은 기존 호환성을 위해 `status="approved"` 후보 스냅샷을 반환한다. 등록 중 duplicate/conflict가 발생하면 409를 반환하고 후보는 `pending`으로 남는다. Reject는 용어를 등록하지 않고 후보 상태만 `rejected`로 변경한다.
 
 ---
 
