@@ -8,7 +8,7 @@ vi.mock("@/lib/api/client", () => ({
   apiRequest,
 }));
 
-import { detailToJob, retryFailedChunk } from "@/lib/api/translationApi";
+import { detailToJob, retryFailedChunk, savePageTranslation } from "@/lib/api/translationApi";
 import type { TranslationDetailApiResponse } from "@/types/history";
 
 describe("retryFailedChunk", () => {
@@ -43,6 +43,48 @@ describe("retryFailedChunk", () => {
       "/api/translations/7/pages/2/chunks/1/retry",
       { method: "POST" },
     );
+  });
+});
+
+describe("savePageTranslation", () => {
+  beforeEach(() => {
+    apiRequest.mockReset();
+  });
+
+  it("uses the page translation edit endpoint", async () => {
+    apiRequest.mockResolvedValueOnce(createDetail({
+      translated_text: "수정본",
+      pages: [{
+        id: 10,
+        page_index: 2,
+        page_title: null,
+        source_text: "원문",
+        translated_text: "수정본",
+        status: "completed",
+        total_chunks: 1,
+        completed_chunks: 1,
+        failed_chunks: 0,
+        elapsed_ms: null,
+        error_message: null,
+        created_at: "2026-07-10T00:00:00",
+        updated_at: "2026-07-10T00:00:00",
+      }],
+    }));
+
+    const job = await savePageTranslation(7, 2, {
+      translated_text: "수정본",
+      comment: null,
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/api/translations/7/pages/2/translation",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ translated_text: "수정본", comment: null }),
+      },
+    );
+    expect(job.currentPageIndex).toBe(0);
+    expect(job.pages[0].translatedText).toBe("수정본");
   });
 });
 
@@ -127,3 +169,56 @@ describe("detailToJob", () => {
     ]);
   });
 });
+
+function createDetail(
+  overrides: Partial<TranslationDetailApiResponse> = {},
+): TranslationDetailApiResponse {
+  return {
+    job_id: 7,
+    source_site: "manual",
+    source_url: null,
+    source_title: null,
+    source_author: null,
+    source_work_id: null,
+    source_fetched_at: null,
+    source_preview: "원문",
+    translated_preview: "수정본",
+    source_lang: "ja",
+    target_lang: "ko",
+    model_name: "gemma4:26b-a4b-it-q4_K_M",
+    prompt_version: "translate_ja_ko_v1",
+    ollama_think: null,
+    ollama_options_json: null,
+    style: "webnovel",
+    honorific_policy: "preserve",
+    preserve_names: true,
+    status: "completed",
+    total_pages: 1,
+    total_chunks: 1,
+    completed_chunks: 1,
+    failed_chunks: 0,
+    elapsed_ms: null,
+    error_message: null,
+    created_at: "2026-07-10T00:00:00",
+    updated_at: "2026-07-10T00:00:00",
+    original_text: "원문",
+    translated_text: "수정본",
+    pages: [{
+      id: 10,
+      page_index: 0,
+      page_title: null,
+      source_text: "원문",
+      translated_text: "수정본",
+      status: "completed",
+      total_chunks: 1,
+      completed_chunks: 1,
+      failed_chunks: 0,
+      elapsed_ms: null,
+      error_message: null,
+      created_at: "2026-07-10T00:00:00",
+      updated_at: "2026-07-10T00:00:00",
+    }],
+    chunks: [],
+    ...overrides,
+  };
+}

@@ -1,5 +1,33 @@
 # DB
 
+## 2026-07-10 Manual Translation Edit Persistence
+
+Manual translation edits reuse existing tables and do not require a schema change.
+
+- The edited final page text is stored in `translation_pages.translated_text`.
+- The job-level final text is rebuilt into `translation_jobs.translated_text` by
+  joining completed pages in page order.
+- Each save creates a `translation_feedback` row with
+  `feedback_type='manual_edit'`, `chunk_id=NULL`, the page source text, the
+  previous page translation, and the user-corrected translation.
+- `translation_chunks.translated_text` is not modified because it represents the
+  model/chunk output used for retry and debugging history.
+- `translation_cache` is not modified because cache entries represent model
+  output for a source/model/prompt/options/cache-key combination, not a user's
+  manually edited final text.
+
+## 2026-07-10 Translation History Deletion Feedback Policy
+
+Deleting translation history also deletes related `translation_feedback` rows.
+
+- Deleting one `translation_jobs` row removes feedback rows linked by `job_id`
+  or by any `translation_chunks.id` belonging to that job.
+- Deleting all translation history clears `translation_feedback` as part of the
+  same operation.
+- The foreign keys remain `ON DELETE SET NULL` for schema compatibility, but the
+  application deletes feedback explicitly before deleting the job rows.
+- `translation_cache` is still preserved when translation history is deleted.
+
 ## 2026-07-10 Manual Glossary Candidate Persistence
 
 Manual glossary candidate creation reuses the existing `glossary_candidates`

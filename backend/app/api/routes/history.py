@@ -9,6 +9,7 @@ from app.llm.translator import TranslationService, TranslationServiceError
 from app.schemas.translation import (
     PageTranslateRequest,
     TranslationDetailResponse,
+    TranslationEditRequest,
     TranslationHistoryItem,
     TranslationResponse,
 )
@@ -55,6 +56,27 @@ async def delete_translation(
 ) -> None:
     try:
         service.delete_translation(job_id)
+    except HistoryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.patch(
+    "/{job_id}/pages/{page_index}/translation",
+    response_model=TranslationDetailResponse,
+)
+async def update_page_translation(
+    job_id: int,
+    page_index: int,
+    request: TranslationEditRequest,
+    service: Annotated[HistoryService, Depends(get_history_service)],
+) -> TranslationDetailResponse:
+    try:
+        return service.update_page_translation(
+            job_id,
+            page_index,
+            translated_text=request.translated_text,
+            comment=request.comment,
+        )
     except HistoryServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 

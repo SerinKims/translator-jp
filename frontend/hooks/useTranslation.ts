@@ -10,6 +10,7 @@ import {
   createPendingJobFromText,
   getTranslationJob,
   retryFailedChunk as retryFailedChunkRequest,
+  savePageTranslation,
   translateAll,
   translatePage,
   translateText,
@@ -108,6 +109,20 @@ export function useTranslation() {
     onError,
   });
 
+  const savePageTranslationMutation = useMutation({
+    mutationFn: ({ jobId, pageIndex, translatedText }: { jobId: number; pageIndex: number; translatedText: string }) =>
+      savePageTranslation(jobId, pageIndex, {
+        translated_text: translatedText,
+        comment: null,
+      }),
+    onSuccess: (job) => {
+      applyJob(job);
+      setErrorMessage(null);
+      setProgressMessage("");
+    },
+    onError,
+  });
+
   const translateUrlAllMutation = useMutation({
     mutationFn: async (request: UrlTranslationRequest) => {
       let job = currentJob;
@@ -187,6 +202,7 @@ export function useTranslation() {
     translateUrlAllMutation.isPending ||
     translateUrlFirstMutation.isPending ||
     retryChunkMutation.isPending;
+  const isSavingTranslation = savePageTranslationMutation.isPending;
   const retryingChunkKey = retryChunkMutation.isPending && retryChunkMutation.variables
     ? `${retryChunkMutation.variables.pageIndex}:${retryChunkMutation.variables.chunkIndex}`
     : null;
@@ -223,6 +239,7 @@ export function useTranslation() {
     currentJob,
     currentPageIndex,
     errorMessage,
+    isSavingTranslation,
     isTranslating,
     pageCount,
     progress,
@@ -258,6 +275,18 @@ export function useTranslation() {
         jobId: currentJob.jobId,
         pageIndex,
         chunkIndex,
+      });
+    },
+    saveCurrentPageTranslation(translatedText: string, onSaved?: () => void) {
+      if (!currentJob || currentJob.jobId === 0) {
+        return;
+      }
+      savePageTranslationMutation.mutate({
+        jobId: currentJob.jobId,
+        pageIndex: currentPageIndex,
+        translatedText,
+      }, {
+        onSuccess: onSaved,
       });
     },
     translateCurrentPage(request: PageTranslateRequest) {

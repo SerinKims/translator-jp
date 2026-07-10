@@ -90,10 +90,12 @@ export default function Home() {
             currentPageIndex={translation.currentPageIndex}
             errorMessage={translation.errorMessage}
             isTranslating={translation.isTranslating}
+            isSavingTranslation={translation.isSavingTranslation}
             isCreatingGlossaryCandidate={glossary.createCandidate.isPending}
             onCreateGlossaryCandidate={(request) => glossary.createCandidate.mutate(request)}
             onPageChange={translation.setCurrentPageIndex}
             onRetryChunk={translation.retryFailedChunk}
+            onSavePageTranslation={translation.saveCurrentPageTranslation}
             onTranslateAllText={translation.translateTextAll}
             onTranslateAllUrl={translation.translateUrlAll}
             onTranslateCurrent={translation.translateCurrentPage}

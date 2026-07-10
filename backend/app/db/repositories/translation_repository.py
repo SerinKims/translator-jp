@@ -4,10 +4,10 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.orm import Session
 
-from app.db.models import TranslationJob
+from app.db.models import TranslationChunk, TranslationFeedback, TranslationJob
 
 
 class TranslationRepository:
@@ -93,6 +93,15 @@ class TranslationRepository:
         if job is None:
             return False
 
+        chunk_ids = select(TranslationChunk.id).where(TranslationChunk.job_id == job_id)
+        self.db.execute(
+            delete(TranslationFeedback).where(
+                or_(
+                    TranslationFeedback.job_id == job_id,
+                    TranslationFeedback.chunk_id.in_(chunk_ids),
+                )
+            )
+        )
         self.db.delete(job)
         self.db.commit()
         return True
@@ -100,6 +109,7 @@ class TranslationRepository:
     def delete_all_jobs(self) -> int:
         jobs = list(self.db.scalars(select(TranslationJob)))
         deleted_count = len(jobs)
+        self.db.execute(delete(TranslationFeedback))
         for job in jobs:
             self.db.delete(job)
         self.db.commit()

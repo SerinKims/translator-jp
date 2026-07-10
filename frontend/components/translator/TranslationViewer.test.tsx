@@ -71,6 +71,8 @@ function renderViewer({
   currentJob = job,
   onCreateGlossaryCandidate,
   onRetryChunk = vi.fn(),
+  onSavePageTranslation,
+  isSavingTranslation = false,
   retryingChunkKey = null,
   setViewerMode = vi.fn(),
   viewerMode = "translation",
@@ -78,19 +80,23 @@ function renderViewer({
   currentJob?: TranslationJob;
   onCreateGlossaryCandidate?: (request: GlossaryCandidateCreateRequest) => void;
   onRetryChunk?: (pageIndex: number, chunkIndex: number) => void;
+  onSavePageTranslation?: (translatedText: string, onSaved?: () => void) => void;
+  isSavingTranslation?: boolean;
   retryingChunkKey?: string | null;
   setViewerMode?: (mode: "both" | "translation") => void;
   viewerMode?: "both" | "translation";
 } = {}) {
-  render(
+  return render(
     <TranslationViewer
       currentJob={currentJob}
       currentPageIndex={0}
       errorMessage={null}
       isTranslating={false}
+      isSavingTranslation={isSavingTranslation}
       onCreateGlossaryCandidate={onCreateGlossaryCandidate}
       onPageChange={vi.fn()}
       onRetryChunk={onRetryChunk}
+      onSavePageTranslation={onSavePageTranslation}
       onTranslateAllText={vi.fn()}
       onTranslateAllUrl={vi.fn()}
       onTranslateCurrent={vi.fn()}
@@ -137,7 +143,7 @@ describe("TranslationViewer glossary candidate selection", () => {
     expect(setViewerMode).toHaveBeenCalledWith("both");
 
     mockSelection("왕도");
-    fireEvent.mouseUp(screen.getByText("왕도의 하늘을 올려다보았다."));
+    fireEvent.mouseUp(screen.getByText("왕도가 하늘을 올려다보았다."));
     expect(screen.getByText("번역어: 왕도")).toBeInTheDocument();
 
     mockSelection("王都");
@@ -154,8 +160,8 @@ describe("TranslationViewer glossary candidate selection", () => {
       source_term: "王都",
       suggested_target_term: "왕도",
       source_text: "王都の空を見上げた。",
-      model_translation: "왕도의 하늘을 올려다보았다.",
-      user_corrected_translation: "왕도의 하늘을 올려다보았다.",
+      model_translation: "왕도가 하늘을 올려다보았다.",
+      user_corrected_translation: "왕도가 하늘을 올려다보았다.",
     });
   });
 
@@ -171,8 +177,83 @@ describe("TranslationViewer glossary candidate selection", () => {
     expect(screen.getByRole("button", { name: "후보 등록 확인" })).toBeDisabled();
 
     mockSelection("왕도");
-    fireEvent.mouseUp(screen.getByText("왕도의 하늘을 올려다보았다."));
+    fireEvent.mouseUp(screen.getByText("왕도가 하늘을 올려다보았다."));
     expect(screen.getByRole("button", { name: "후보 등록 확인" })).toBeDisabled();
+  });
+});
+
+describe("TranslationViewer translation editing", () => {
+  it("edits and saves the current page translation", async () => {
+    const user = userEvent.setup();
+    const onSavePageTranslation = vi.fn();
+    renderViewer({
+      currentJob: createCompletedJob(),
+      onSavePageTranslation,
+    });
+
+    await user.click(screen.getByRole("button", { name: "수정" }));
+    const textarea = screen.getByLabelText("번역문 수정");
+    expect(textarea).toHaveValue("왕도가 하늘을 올려다보았다.");
+
+    await user.clear(textarea);
+    await user.type(textarea, "왕도는 하늘을 올려다보았다.");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(onSavePageTranslation).toHaveBeenCalledWith(
+      "왕도는 하늘을 올려다보았다.",
+      expect.any(Function),
+    );
+  });
+
+  it("cancels translation edits and restores the saved text", async () => {
+    const user = userEvent.setup();
+    const onSavePageTranslation = vi.fn();
+    renderViewer({
+      currentJob: createCompletedJob(),
+      onSavePageTranslation,
+    });
+
+    await user.click(screen.getByRole("button", { name: "수정" }));
+    const textarea = screen.getByLabelText("번역문 수정");
+    await user.clear(textarea);
+    await user.type(textarea, "임시 수정");
+    await user.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(screen.queryByLabelText("번역문 수정")).not.toBeInTheDocument();
+    expect(screen.getByText("왕도가 하늘을 올려다보았다.")).toBeInTheDocument();
+    expect(onSavePageTranslation).not.toHaveBeenCalled();
+  });
+
+  it("disables edit controls while the save request is pending", async () => {
+    const user = userEvent.setup();
+    const view = renderViewer({
+      currentJob: createCompletedJob(),
+      onSavePageTranslation: vi.fn(),
+    });
+
+    await user.click(screen.getByRole("button", { name: "수정" }));
+    view.rerender(
+      <TranslationViewer
+        currentJob={createCompletedJob()}
+        currentPageIndex={0}
+        errorMessage={null}
+        isTranslating={false}
+        isSavingTranslation
+        onPageChange={vi.fn()}
+        onRetryChunk={vi.fn()}
+        onSavePageTranslation={vi.fn()}
+        onTranslateAllText={vi.fn()}
+        onTranslateAllUrl={vi.fn()}
+        onTranslateCurrent={vi.fn()}
+        retryingChunkKey={null}
+        setViewerMode={vi.fn()}
+        viewerMode="translation"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "저장 중" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "취소" })).toBeDisabled();
+    expect(screen.getByLabelText("번역문 수정")).toBeDisabled();
   });
 });
 
@@ -185,7 +266,7 @@ function createCompletedJob(): TranslationJob {
         id: 20,
         index: 0,
         sourceText: "王都の空を見上げた。",
-        translatedText: "왕도의 하늘을 올려다보았다.",
+        translatedText: "왕도가 하늘을 올려다보았다.",
         status: "completed",
       },
     ],

@@ -1,5 +1,16 @@
 # FRONTEND
 
+## 2026-07-10 Manual Translation Edit UX
+
+- The translation viewer shows edit controls for a completed page with saved
+  translated text.
+- Selecting `수정` switches the translated-text panel to a textarea.
+- `저장` calls `PATCH /api/translations/{job_id}/pages/{page_index}/translation`;
+  while saving, edit controls are disabled.
+- `취소` exits edit mode and restores the saved page translation.
+- After a successful save, the current job detail and history list are refreshed.
+- Glossary candidate selection is disabled while translation edit mode is active.
+
 ## 2026-07-10 Manual Glossary Candidate Selection UX
 
 - The translation viewer provides a `용어 후보 만들기` action when the current

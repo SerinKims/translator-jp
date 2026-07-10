@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenText, Clipboard, Languages, RotateCw } from "lucide-react";
+import { BookOpenText, Clipboard, Languages, Pencil, RotateCw, Save, X } from "lucide-react";
 import { useState } from "react";
 
 import { PageNavigator, PageStepButtons } from "@/components/translator/PageNavigator";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { createPageTranslateRequest, createTranslationRequest, createUrlTranslationRequest } from "@/lib/translationRequests";
 import type { GlossaryCandidateCreateRequest, GlossarySourceLanguage } from "@/types/glossary";
 import type { TranslationJob, TranslationRequest, UrlTranslationRequest, ViewerMode } from "@/types/translation";
@@ -27,9 +28,11 @@ export function TranslationViewer({
   errorMessage,
   isTranslating,
   isCreatingGlossaryCandidate = false,
+  isSavingTranslation = false,
   onCreateGlossaryCandidate,
   onPageChange,
   onRetryChunk,
+  onSavePageTranslation,
   onTranslateAllText,
   onTranslateAllUrl,
   onTranslateCurrent,
@@ -42,9 +45,11 @@ export function TranslationViewer({
   errorMessage: string | null;
   isTranslating: boolean;
   isCreatingGlossaryCandidate?: boolean;
+  isSavingTranslation?: boolean;
   onCreateGlossaryCandidate?: (request: GlossaryCandidateCreateRequest) => void;
   onPageChange: (index: number) => void;
   onRetryChunk: (pageIndex: number, chunkIndex: number) => void;
+  onSavePageTranslation?: (translatedText: string, onSaved?: () => void) => void;
   onTranslateAllText: (request: TranslationRequest) => void;
   onTranslateAllUrl: (request: UrlTranslationRequest) => void;
   onTranslateCurrent: (request: ReturnType<typeof createPageTranslateRequest>) => void;
@@ -58,7 +63,13 @@ export function TranslationViewer({
   const [selectedSourceTerm, setSelectedSourceTerm] = useState("");
   const [selectedTargetTerm, setSelectedTargetTerm] = useState("");
   const [candidateMessage, setCandidateMessage] = useState("");
+  const [isEditingTranslation, setIsEditingTranslation] = useState(false);
+  const [editedTranslation, setEditedTranslation] = useState("");
+  const [editingTranslationKey, setEditingTranslationKey] = useState<string | null>(null);
   const activePage = currentJob?.pages[currentPageIndex] ?? null;
+  const activePageKey = currentJob ? `${currentJob.jobId}:${currentPageIndex}` : null;
+  const isEditingCurrentTranslation =
+    isEditingTranslation && editingTranslationKey === activePageKey;
   const pageCount = currentJob?.pages.length ?? 0;
   const failedChunks =
     currentJob?.chunks.filter(
@@ -106,6 +117,12 @@ export function TranslationViewer({
   const canStartCandidateMode = Boolean(
     currentJob && activePage?.sourceText && activePage?.translatedText && onCreateGlossaryCandidate,
   );
+  const canEditTranslation = Boolean(
+    currentJob?.jobId &&
+      activePage?.translatedText &&
+      activePage.status === "completed" &&
+      onSavePageTranslation,
+  );
   const canSubmitCandidate = Boolean(selectedSourceTerm.trim() && selectedTargetTerm.trim());
 
   const startCandidateMode = () => {
@@ -126,6 +143,38 @@ export function TranslationViewer({
     setSelectedSourceTerm("");
     setSelectedTargetTerm("");
     setCandidateMessage("");
+  };
+
+  const closeTranslationEditor = () => {
+    setIsEditingTranslation(false);
+    setEditingTranslationKey(null);
+    setEditedTranslation("");
+  };
+
+  const startEditingTranslation = () => {
+    if (!canEditTranslation || !activePage || !activePageKey) {
+      return;
+    }
+    cancelCandidateMode();
+    setEditedTranslation(activePage.translatedText);
+    setEditingTranslationKey(activePageKey);
+    setIsEditingTranslation(true);
+  };
+
+  const cancelEditingTranslation = () => {
+    closeTranslationEditor();
+  };
+
+  const saveEditedTranslation = () => {
+    if (!onSavePageTranslation || !editedTranslation.trim()) {
+      return;
+    }
+    onSavePageTranslation(editedTranslation, closeTranslationEditor);
+  };
+
+  const changePage = (index: number) => {
+    closeTranslationEditor();
+    onPageChange(index);
   };
 
   const captureCandidateSelection = (side: "source" | "target") => {
@@ -195,7 +244,12 @@ export function TranslationViewer({
               type="button"
               variant="outline"
               onClick={startCandidateMode}
-              disabled={!canStartCandidateMode || isTranslating || isCreatingGlossaryCandidate}
+              disabled={
+                !canStartCandidateMode ||
+                isTranslating ||
+                isCreatingGlossaryCandidate ||
+                isEditingCurrentTranslation
+              }
             >
               용어 후보 만들기
             </Button>
@@ -219,7 +273,7 @@ export function TranslationViewer({
 
         <Separator />
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <PageNavigator currentPageIndex={currentPageIndex} onPageChange={onPageChange} pageCount={pageCount} />
+          <PageNavigator currentPageIndex={currentPageIndex} onPageChange={changePage} pageCount={pageCount} />
           <div className="w-full xl:w-56">
             <Select value={viewerMode} onValueChange={(value) => setViewerMode(value as ViewerMode)}>
               <SelectTrigger>
@@ -253,14 +307,62 @@ export function TranslationViewer({
                 title="한국어 번역본"
                 meta={<Badge variant={activePage?.status === "completed" ? "success" : activePage?.status === "failed" ? "destructive" : "secondary"}>{statusLabel(activePage?.status)}</Badge>}
                 action={
-                  <Button type="button" variant="outline" size="sm" onClick={copyTranslation}>
-                    <Clipboard className="h-4 w-4" />
-                    {copyLabel}
-                  </Button>
+                  <div className="flex shrink-0 gap-2">
+                    {isEditingCurrentTranslation ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={cancelEditingTranslation}
+                          disabled={isSavingTranslation}
+                        >
+                          <X className="h-4 w-4" />
+                          취소
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={saveEditedTranslation}
+                          disabled={isSavingTranslation || !editedTranslation.trim()}
+                        >
+                          <Save className="h-4 w-4" />
+                          {isSavingTranslation ? "저장 중" : "저장"}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={startEditingTranslation}
+                          disabled={!canEditTranslation || isTranslating || isSavingTranslation}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          수정
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={copyTranslation}>
+                          <Clipboard className="h-4 w-4" />
+                          {copyLabel}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 }
                 onTextSelect={() => captureCandidateSelection("target")}
               >
-                {activePage?.translatedText || "아직 이 page의 번역 결과가 없습니다. 현재 page 번역 또는 전체 번역을 실행하세요."}
+                {isEditingCurrentTranslation ? (
+                  <Textarea
+                    aria-label="번역문 수정"
+                    className="min-h-96 resize-y leading-7"
+                    disabled={isSavingTranslation}
+                    value={editedTranslation}
+                    onChange={(event) => setEditedTranslation(event.target.value)}
+                  />
+                ) : (
+                  activePage?.translatedText || "아직 이 page의 번역 결과가 없습니다. 현재 page 번역 또는 전체 번역을 실행하세요."
+                )}
               </ViewerPanel>
             </div>
             {isCandidateMode || candidateMessage ? (
@@ -336,7 +438,7 @@ export function TranslationViewer({
             ) : null}
             <div className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm text-muted-foreground">page {currentPageIndex + 1} / {pageCount}</span>
-              <PageStepButtons currentPageIndex={currentPageIndex} onPageChange={onPageChange} pageCount={pageCount} />
+              <PageStepButtons currentPageIndex={currentPageIndex} onPageChange={changePage} pageCount={pageCount} />
             </div>
           </div>
         )}

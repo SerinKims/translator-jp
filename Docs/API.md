@@ -1,5 +1,47 @@
 # API Specification
 
+## 2026-07-10 Manual Translation Edit Contract
+
+The translation viewer can save a user-edited final translation for one page.
+
+```http
+PATCH /api/translations/{job_id}/pages/{page_index}/translation
+```
+
+Request:
+
+```json
+{
+  "translated_text": "사용자가 다듬은 최종 번역문",
+  "comment": null
+}
+```
+
+- The endpoint updates `translation_pages.translated_text` for the selected page.
+- It rebuilds `translation_jobs.translated_text` from completed pages in page order.
+- It creates a `translation_feedback` row with `feedback_type="manual_edit"`,
+  `chunk_id=null`, the previous page translation as `model_translation`, and
+  the edited text as `user_corrected_translation`.
+- It does not update `translation_chunks` or `translation_cache`.
+- Missing job or page returns `404`; unfinished pages return `409`; blank
+  `translated_text` returns request validation `422`.
+- The response uses the existing `TranslationDetailResponse` shape.
+
+## 2026-07-10 Translation History Deletion Feedback Contract
+
+Translation history deletion also removes stored translation feedback.
+
+```http
+DELETE /api/translations/{job_id}
+DELETE /api/translations
+```
+
+- `DELETE /api/translations/{job_id}` deletes the selected job, its pages,
+  chunks, and feedback rows linked to that job or its chunks.
+- `DELETE /api/translations` deletes all translation jobs and clears
+  `translation_feedback`.
+- `translation_cache` is preserved for both delete operations.
+
 ## 2026-07-10 Manual Glossary Candidate Creation
 
 The glossary candidate workflow supports a manual source/target term selection

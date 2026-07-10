@@ -1,5 +1,18 @@
 # PRD: 일본어 → 한국어 웹소설 번역 사이트
 
+## 2026-07-10 Manual Translation Edit Requirements
+
+- Users can edit and save the Korean translation for the current page in the
+  translation viewer.
+- The saved edit becomes the final translation shown to the user and is stored
+  in `translation_pages.translated_text` and the rebuilt
+  `translation_jobs.translated_text`.
+- The previous model translation and the user edit are preserved in
+  `translation_feedback` with `feedback_type="manual_edit"`.
+- Manual edits do not update `translation_cache` or
+  `translation_chunks.translated_text`; those remain model-output records.
+- Blank edits and pages that have not completed translation cannot be saved.
+
 ## 2026-07-10 수동 용어집 후보 등록 요구사항
 
 - 사용자는 번역 결과 화면에서 번역어와 대응 원어를 직접 선택하여 용어집

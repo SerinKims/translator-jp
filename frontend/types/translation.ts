@@ -77,6 +77,11 @@ export interface PageTranslateRequest extends Omit<TranslationRequest, "text" | 
   force: boolean;
 }
 
+export interface TranslationEditRequest {
+  translated_text: string;
+  comment?: string | null;
+}
+
 export interface TranslationChunkResponse {
   index: number;
   source_lang: string;

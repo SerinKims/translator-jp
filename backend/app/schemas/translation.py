@@ -47,6 +47,18 @@ class PageTranslateRequest(OllamaRequestOptions):
     force: bool = False
 
 
+class TranslationEditRequest(BaseModel):
+    translated_text: str
+    comment: str | None = None
+
+    @field_validator("translated_text")
+    @classmethod
+    def validate_translated_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("translated_text must not be empty")
+        return value
+
+
 class TranslationChunkResponse(BaseModel):
     index: int
     source_lang: str

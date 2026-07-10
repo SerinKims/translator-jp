@@ -7,6 +7,7 @@ import type {
   SourceLanguage,
   TargetLanguage,
   TranslationApiResult,
+  TranslationEditRequest,
   TranslationJob,
   TranslationOptions,
   TranslationPage,
@@ -122,6 +123,21 @@ export async function retryFailedChunk(
     sourceText: "",
     options: responseToOptions(response),
   });
+}
+
+export async function savePageTranslation(
+  jobId: number,
+  pageIndex: number,
+  request: TranslationEditRequest,
+): Promise<TranslationJob> {
+  const detail = await apiRequest<TranslationDetailApiResponse>(
+    `/api/translations/${jobId}/pages/${pageIndex}/translation`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(request),
+    },
+  );
+  return detailToJob(detail, { currentPageIndex: pageIndex });
 }
 
 export async function getTranslationJob(jobId: number, fallback?: Partial<TranslationJob>): Promise<TranslationJob> {
