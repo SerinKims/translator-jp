@@ -35,7 +35,7 @@ export default function Home() {
         return;
       }
       try {
-        setModelSettings({ ...DEFAULT_MODEL_SETTINGS, ...(JSON.parse(stored) as Partial<ModelSettingsType>) });
+        setModelSettings(normalizeModelSettings(JSON.parse(stored)));
       } catch {
         window.localStorage.removeItem(MODEL_SETTINGS_STORAGE_KEY);
       }
@@ -180,4 +180,15 @@ export default function Home() {
       </main>
     </div>
   );
+}
+
+function normalizeModelSettings(value: unknown): ModelSettingsType {
+  const storedSettings = value && typeof value === "object" ? (value as Partial<ModelSettingsType>) : {};
+  const merged = { ...DEFAULT_MODEL_SETTINGS, ...storedSettings };
+  const defaultModel = typeof storedSettings.defaultModel === "string" ? storedSettings.defaultModel.trim() : "";
+
+  return {
+    ...merged,
+    defaultModel: defaultModel || DEFAULT_MODEL_SETTINGS.defaultModel,
+  };
 }

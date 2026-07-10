@@ -1,5 +1,14 @@
 # FRONTEND
 
+## 2026-07-10 Custom Ollama Model Input UX
+
+- The settings screen model field accepts any non-blank local Ollama model name.
+- The field keeps preset suggestions for `gemma4:26b-a4b-it-q4_K_M`,
+  `gemma4:12b`, and `qwen2.5:14b`.
+- Model names are trimmed before saving to browser local storage.
+- Blank model names cannot be saved and show an inline validation message.
+- Stored blank or missing model names fall back to the default model.
+
 ## 2026-07-10 Translation Cache Clear UX
 
 - The settings section shows a cache management card.

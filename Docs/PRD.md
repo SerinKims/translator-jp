@@ -1,5 +1,15 @@
 # PRD: 일본어 → 한국어 웹소설 번역 사이트
 
+## 2026-07-10 Custom Ollama Model Input Requirements
+
+- Users can enter any non-blank local Ollama model name in the model settings
+  screen.
+- The UI provides preset suggestions for the known gemma/qwen models while
+  still allowing direct input.
+- Saved model names are trimmed and stored as browser-local settings.
+- Blank or missing stored model names fall back to the default model
+  `gemma4:26b-a4b-it-q4_K_M`.
+
 ## 2026-07-10 Translation Cache Clear Requirements
 
 - Users can clear the server-side translation reuse cache from the settings

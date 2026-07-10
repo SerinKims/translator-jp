@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DEFAULT_MODEL_SETTINGS, type ModelSettings as ModelSettingsType } from "@/types/translation";
 
 export const MODEL_SETTINGS_STORAGE_KEY = "translator-model-settings-v1";
+const MODEL_PRESETS = ["gemma4:26b-a4b-it-q4_K_M", "gemma4:12b", "qwen2.5:14b"] as const;
 
 export function ModelSettings({
   settings,
@@ -35,9 +36,16 @@ export function ModelSettings({
   }, [settings]);
 
   const save = () => {
-    onSettingsChange(draft);
+    const trimmedModel = draft.defaultModel.trim();
+    if (!trimmedModel) {
+      return;
+    }
+
+    const nextDraft = { ...draft, defaultModel: trimmedModel };
+    setDraft(nextDraft);
+    onSettingsChange(nextDraft);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(MODEL_SETTINGS_STORAGE_KEY, JSON.stringify(draft));
+      window.localStorage.setItem(MODEL_SETTINGS_STORAGE_KEY, JSON.stringify(nextDraft));
     }
     setIsSavedOpen(true);
   };
@@ -50,26 +58,39 @@ export function ModelSettings({
     }
   };
 
+  const isModelNameInvalid = !draft.defaultModel.trim();
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card>
         <CardHeader>
           <CardTitle>모델 설정</CardTitle>
-          <CardDescription>모델명과 Ollama 옵션은 로컬 설정으로 보관하고, prompt version은 백엔드가 원문 언어에 따라 자동 선택합니다.</CardDescription>
+          <CardDescription>
+            로컬 Ollama에 설치된 모델명을 직접 입력할 수 있고, Ollama 옵션은 로컬 설정으로 보관합니다. prompt version은 백엔드가 원문 언어에 따라 자동
+            선택합니다.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
             <LabeledField label="모델명">
-              <Select value={draft.defaultModel} onValueChange={(value) => setDraft((current) => ({ ...current, defaultModel: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gemma4:26b-a4b-it-q4_K_M">gemma4:26b-a4b-it-q4_K_M</SelectItem>
-                  <SelectItem value="gemma4:12b">gemma4:12b</SelectItem>
-                  <SelectItem value="qwen2.5:14b">qwen2.5:14b</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                aria-describedby={isModelNameInvalid ? "model-name-error" : undefined}
+                aria-invalid={isModelNameInvalid}
+                list="ollama-model-presets"
+                placeholder="gemma4:26b-a4b-it-q4_K_M"
+                value={draft.defaultModel}
+                onChange={(event) => setDraft((current) => ({ ...current, defaultModel: event.target.value }))}
+              />
+              <datalist id="ollama-model-presets">
+                {MODEL_PRESETS.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+              {isModelNameInvalid && (
+                <p id="model-name-error" className="text-xs font-normal text-destructive">
+                  모델명을 입력해주세요.
+                </p>
+              )}
             </LabeledField>
             <LabeledField label="Style">
               <Select value={draft.style} onValueChange={(value) => setDraft((current) => ({ ...current, style: value as ModelSettingsType["style"] }))}>
@@ -128,7 +149,7 @@ export function ModelSettings({
           </div>
 
           <div className="flex gap-2">
-            <Button type="button" onClick={save}>
+            <Button type="button" onClick={save} disabled={isModelNameInvalid}>
               <Save className="h-4 w-4" />
               저장
             </Button>
@@ -149,7 +170,7 @@ export function ModelSettings({
           <br />
           temperature, top_p, context window, max tokens는 Ollama options로 전달합니다.
           <br />
-          모델명과 Ollama 옵션은 요청에 전달되며, prompt version은 번역 응답에 포함된 백엔드 선택값을 표시합니다.
+          모델명은 로컬 Ollama에 설치된 이름을 입력하거나 추천값에서 고를 수 있으며, 번역 요청과 이력에 그대로 반영됩니다.
         </CardContent>
       </Card>
 
