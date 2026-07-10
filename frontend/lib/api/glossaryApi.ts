@@ -2,6 +2,7 @@ import { apiRequest } from "@/lib/api/client";
 import type {
   GlossaryCandidate,
   GlossaryCandidateApproveRequest,
+  GlossaryCandidateCreateRequest,
   GlossaryImportRequest,
   GlossaryImportResponse,
   GlossaryTerm,
@@ -50,6 +51,15 @@ export async function importGlossary(request: GlossaryImportRequest): Promise<Gl
 export async function listGlossaryCandidates(status?: string): Promise<GlossaryCandidate[]> {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
   return apiRequest<GlossaryCandidate[]>(`/api/glossary/candidates${query}`);
+}
+
+export async function createGlossaryCandidate(
+  request: GlossaryCandidateCreateRequest,
+): Promise<GlossaryCandidate> {
+  return apiRequest<GlossaryCandidate>("/api/glossary/candidates", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
 }
 
 export async function approveGlossaryCandidate(

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.glossary import (
     GlossaryCandidateApproveRequest,
+    GlossaryCandidateCreateRequest,
     GlossaryCandidateResponse,
     GlossaryImportResponse,
     GlossaryTermCreate,
@@ -106,6 +107,22 @@ def list_glossary_candidates(
 ) -> list[GlossaryCandidateResponse]:
     candidates = service.list_candidates(status=status)
     return [glossary_candidate_to_response(candidate) for candidate in candidates]
+
+
+@router.post(
+    "/glossary/candidates",
+    response_model=GlossaryCandidateResponse,
+    status_code=201,
+)
+def create_glossary_candidate(
+    request: GlossaryCandidateCreateRequest,
+    service: Annotated[GlossaryService, Depends(get_glossary_service)],
+) -> GlossaryCandidateResponse:
+    try:
+        candidate = service.create_candidate_from_manual_selection(**request.model_dump())
+    except GlossaryServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return glossary_candidate_to_response(candidate)
 
 
 @router.post(

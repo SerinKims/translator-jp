@@ -1,5 +1,19 @@
 # DB
 
+## 2026-07-10 Manual Glossary Candidate Persistence
+
+Manual glossary candidate creation reuses the existing `glossary_candidates`
+table and does not require a schema change.
+
+- `source_term` stores the source-language term selected by the user.
+- `suggested_target_term` stores the Korean term selected by the user.
+- `source_text` stores the current page source context.
+- `model_translation` stores the current page translated text.
+- `user_corrected_translation` stores the same current page translated text for
+  manual selection candidates because no full translation edit is required.
+- `status` starts as `pending`; approval creates a `glossary_terms` row and
+  changes the candidate to `approved`.
+
 ## 2026-06-30 Page Translation Schema
 
 `[newpage]` input is stored as a page hierarchy:

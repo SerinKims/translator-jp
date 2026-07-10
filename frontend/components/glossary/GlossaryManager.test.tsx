@@ -38,11 +38,11 @@ const candidate: GlossaryCandidate = {
   id: 9,
   source_lang: "ja",
   target_lang: "ko",
-  source_term: "王都",
-  suggested_target_term: "왕도",
-  source_text: "王都の空を見上げた。",
-  model_translation: "수도의 하늘을 올려다보았다.",
-  user_corrected_translation: "왕도의 하늘을 올려다보았다.",
+  source_term: "禰豆子",
+  suggested_target_term: "네즈코",
+  source_text: "禰豆子は竹筒をくわえている。",
+  model_translation: "네즈코는 대나무 통을 물고 있다.",
+  user_corrected_translation: "네즈코는 대나무 통을 물고 있다.",
   status: "pending",
   created_at: "2026-07-09T00:00:00",
   updated_at: "2026-07-09T00:00:00",
@@ -86,12 +86,22 @@ function renderManager({
 }
 
 describe("GlossaryManager candidates", () => {
+  it("shows pending candidates as compact term pairs without translation context", () => {
+    renderManager({ candidates: [candidate] });
+
+    expect(screen.getByText("禰豆子")).toBeInTheDocument();
+    expect(screen.getByText("네즈코")).toBeInTheDocument();
+    expect(screen.getAllByText("일본어").length).toBeGreaterThan(0);
+    expect(screen.queryByText("禰豆子は竹筒をくわえている。")).not.toBeInTheDocument();
+    expect(screen.queryByText("네즈코는 대나무 통을 물고 있다.")).not.toBeInTheDocument();
+  });
+
   it("approves a candidate with edited glossary settings", async () => {
     const user = userEvent.setup();
     const approveCandidate = vi.fn();
     renderManager({ approveCandidate, candidates: [candidate] });
 
-    expect(screen.getByText("王都の空を見上げた。")).toBeInTheDocument();
+    expect(screen.getByText("禰豆子")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "승인 검토" }));
     await user.clear(screen.getByLabelText("후보 우선순위"));
     await user.type(screen.getByLabelText("후보 우선순위"), "90");
@@ -125,7 +135,7 @@ describe("GlossaryManager candidates", () => {
       error: new ApiError("같은 원어에 다른 번역어가 이미 등록되어 있습니다.", 409),
     });
 
-    expect(screen.getByText("王都の空を見上げた。")).toBeInTheDocument();
+    expect(screen.getByText("禰豆子")).toBeInTheDocument();
     expect(screen.getByText("같은 원어에 다른 번역어가 이미 등록되어 있습니다.")).toBeInTheDocument();
   });
 });

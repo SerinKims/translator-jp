@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   approveGlossaryCandidate,
+  createGlossaryCandidate,
   createGlossaryTerm,
   deleteGlossaryTerm,
   importGlossary,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/api/glossaryApi";
 import type {
   GlossaryCandidateApproveRequest,
+  GlossaryCandidateCreateRequest,
   GlossaryImportRequest,
   GlossaryTermCreateRequest,
   GlossaryTermUpdateRequest,
@@ -53,6 +55,10 @@ export function useGlossary() {
     mutationFn: (request: GlossaryImportRequest) => importGlossary(request),
     onSuccess: invalidate,
   });
+  const createCandidate = useMutation({
+    mutationFn: (request: GlossaryCandidateCreateRequest) => createGlossaryCandidate(request),
+    onSuccess: invalidate,
+  });
   const approveCandidate = useMutation({
     mutationFn: ({ id, request }: { id: number; request: GlossaryCandidateApproveRequest }) =>
       approveGlossaryCandidate(id, request),
@@ -74,6 +80,7 @@ export function useGlossary() {
       deleteTerm.error ??
       permanentlyDeleteTerm.error ??
       importTerms.error ??
+      createCandidate.error ??
       approveCandidate.error ??
       rejectCandidate.error,
     isLoading: query.isLoading,
@@ -83,6 +90,7 @@ export function useGlossary() {
     deleteTerm,
     permanentlyDeleteTerm,
     importTerms,
+    createCandidate,
     approveCandidate,
     rejectCandidate,
   };

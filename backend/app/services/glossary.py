@@ -249,6 +249,27 @@ class GlossaryService:
             user_corrected_translation=user_corrected_translation,
         )
 
+    def create_candidate_from_manual_selection(
+        self,
+        *,
+        source_lang: str = "ja",
+        target_lang: str = "ko",
+        source_term: str,
+        suggested_target_term: str,
+        source_text: str,
+        model_translation: str,
+        user_corrected_translation: str,
+    ) -> Any:
+        return self.repository.create_candidate(
+            source_lang=source_lang,
+            target_lang=target_lang,
+            source_term=source_term,
+            suggested_target_term=suggested_target_term,
+            source_text=source_text,
+            model_translation=model_translation,
+            user_corrected_translation=user_corrected_translation,
+        )
+
     def approve_candidate(
         self,
         candidate_id: int,

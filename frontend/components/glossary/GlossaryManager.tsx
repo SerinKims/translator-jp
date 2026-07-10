@@ -443,9 +443,6 @@ export function GlossaryManager({
                       <span className="text-muted-foreground">→</span>
                       <strong>{candidate.suggested_target_term}</strong>
                     </div>
-                    <CandidateContext label="원문 문맥" value={candidate.source_text} />
-                    <CandidateContext label="모델 번역" value={candidate.model_translation} />
-                    <CandidateContext label="사용자 교정" value={candidate.user_corrected_translation} />
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <Button type="button" size="sm" onClick={() => openApproval(candidate)} disabled={isMutating}>
@@ -587,15 +584,6 @@ export function GlossaryManager({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-function CandidateContext({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <p className="mt-1 whitespace-pre-wrap">{value}</p>
     </div>
   );
 }

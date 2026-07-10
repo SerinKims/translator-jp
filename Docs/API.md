@@ -1,5 +1,38 @@
 # API Specification
 
+## 2026-07-10 Manual Glossary Candidate Creation
+
+The glossary candidate workflow supports a manual source/target term selection
+entrypoint from the translation viewer.
+
+```http
+POST /api/glossary/candidates
+```
+
+Request:
+
+```json
+{
+  "source_lang": "ja",
+  "target_lang": "ko",
+  "source_term": "王都",
+  "suggested_target_term": "왕도",
+  "source_text": "王都の空を見上げた。",
+  "model_translation": "왕도의 하늘을 올려다보았다.",
+  "user_corrected_translation": "왕도의 하늘을 올려다보았다."
+}
+```
+
+- This endpoint creates a `pending` `glossary_candidates` row directly from
+  terms selected by the user.
+- Unlike feedback-derived candidate creation, manual creation does not require
+  `model_translation` and `user_corrected_translation` to differ.
+- Empty `source_term`, `suggested_target_term`, context, or language fields are
+  rejected by request validation.
+- Approval and rejection continue to use the existing
+  `POST /api/glossary/candidates/{candidate_id}/approve` and
+  `POST /api/glossary/candidates/{candidate_id}/reject` endpoints.
+
 ## 2026-07-09 Page-Scoped Chunk Retry Contract
 
 Frontend retry actions use the page-scoped endpoint:

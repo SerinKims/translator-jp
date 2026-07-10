@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TranslationViewer } from "@/components/translator/TranslationViewer";
+import type { GlossaryCandidateCreateRequest } from "@/types/glossary";
 import type { TranslationJob } from "@/types/translation";
 
 const job: TranslationJob = {
@@ -62,21 +63,40 @@ const job: TranslationJob = {
   updatedAt: "2026-07-09T00:00:00",
 };
 
-function renderViewer(onRetryChunk = vi.fn(), retryingChunkKey: string | null = null) {
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function renderViewer({
+  currentJob = job,
+  onCreateGlossaryCandidate,
+  onRetryChunk = vi.fn(),
+  retryingChunkKey = null,
+  setViewerMode = vi.fn(),
+  viewerMode = "translation",
+}: {
+  currentJob?: TranslationJob;
+  onCreateGlossaryCandidate?: (request: GlossaryCandidateCreateRequest) => void;
+  onRetryChunk?: (pageIndex: number, chunkIndex: number) => void;
+  retryingChunkKey?: string | null;
+  setViewerMode?: (mode: "both" | "translation") => void;
+  viewerMode?: "both" | "translation";
+} = {}) {
   render(
     <TranslationViewer
-      currentJob={job}
+      currentJob={currentJob}
       currentPageIndex={0}
       errorMessage={null}
       isTranslating={false}
+      onCreateGlossaryCandidate={onCreateGlossaryCandidate}
       onPageChange={vi.fn()}
       onRetryChunk={onRetryChunk}
       onTranslateAllText={vi.fn()}
       onTranslateAllUrl={vi.fn()}
       onTranslateCurrent={vi.fn()}
       retryingChunkKey={retryingChunkKey}
-      setViewerMode={vi.fn()}
-      viewerMode="translation"
+      setViewerMode={setViewerMode}
+      viewerMode={viewerMode}
     />,
   );
 }
@@ -85,7 +105,7 @@ describe("TranslationViewer failed chunks", () => {
   it("shows only failed chunks from the current page and retries the selected chunk", async () => {
     const user = userEvent.setup();
     const onRetryChunk = vi.fn();
-    renderViewer(onRetryChunk);
+    renderViewer({ onRetryChunk });
 
     expect(screen.getByText("현재 페이지 실패 원문")).toBeInTheDocument();
     expect(screen.queryByText("다른 페이지 실패 원문")).not.toBeInTheDocument();
@@ -95,7 +115,86 @@ describe("TranslationViewer failed chunks", () => {
   });
 
   it("disables the chunk button while that chunk is retrying", () => {
-    renderViewer(vi.fn(), "0:0");
+    renderViewer({ retryingChunkKey: "0:0" });
     expect(screen.getByRole("button", { name: "Chunk 1 재시도 중" })).toBeDisabled();
   });
 });
+
+describe("TranslationViewer glossary candidate selection", () => {
+  it("creates a candidate from selected translated and source terms", async () => {
+    const user = userEvent.setup();
+    const onCreateGlossaryCandidate = vi.fn();
+    const setViewerMode = vi.fn();
+    const completedJob = createCompletedJob();
+    renderViewer({
+      currentJob: completedJob,
+      onCreateGlossaryCandidate,
+      setViewerMode,
+      viewerMode: "both",
+    });
+
+    await user.click(screen.getByRole("button", { name: "용어 후보 만들기" }));
+    expect(setViewerMode).toHaveBeenCalledWith("both");
+
+    mockSelection("왕도");
+    fireEvent.mouseUp(screen.getByText("왕도의 하늘을 올려다보았다."));
+    expect(screen.getByText("번역어: 왕도")).toBeInTheDocument();
+
+    mockSelection("王都");
+    fireEvent.mouseUp(screen.getByText("王都の空を見上げた。"));
+    expect(screen.getByText("원어: 王都")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "후보 등록 확인" }));
+    expect(screen.getByText("王都 → 왕도")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "후보 등록" }));
+    expect(onCreateGlossaryCandidate).toHaveBeenCalledWith({
+      source_lang: "ja",
+      target_lang: "ko",
+      source_term: "王都",
+      suggested_target_term: "왕도",
+      source_text: "王都の空を見上げた。",
+      model_translation: "왕도의 하늘을 올려다보았다.",
+      user_corrected_translation: "왕도의 하늘을 올려다보았다.",
+    });
+  });
+
+  it("keeps the candidate confirmation disabled until both terms are selected", async () => {
+    const user = userEvent.setup();
+    renderViewer({
+      currentJob: createCompletedJob(),
+      onCreateGlossaryCandidate: vi.fn(),
+      viewerMode: "both",
+    });
+
+    await user.click(screen.getByRole("button", { name: "용어 후보 만들기" }));
+    expect(screen.getByRole("button", { name: "후보 등록 확인" })).toBeDisabled();
+
+    mockSelection("왕도");
+    fireEvent.mouseUp(screen.getByText("왕도의 하늘을 올려다보았다."));
+    expect(screen.getByRole("button", { name: "후보 등록 확인" })).toBeDisabled();
+  });
+});
+
+function createCompletedJob(): TranslationJob {
+  return {
+    ...job,
+    status: "completed",
+    pages: [
+      {
+        id: 20,
+        index: 0,
+        sourceText: "王都の空を見上げた。",
+        translatedText: "왕도의 하늘을 올려다보았다.",
+        status: "completed",
+      },
+    ],
+    chunks: [],
+  };
+}
+
+function mockSelection(text: string) {
+  vi.spyOn(window, "getSelection").mockReturnValue({
+    toString: () => text,
+  } as Selection);
+}

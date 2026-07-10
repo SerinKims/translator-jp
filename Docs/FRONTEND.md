@@ -1,5 +1,19 @@
 # FRONTEND
 
+## 2026-07-10 Manual Glossary Candidate Selection UX
+
+- The translation viewer provides a `용어 후보 만들기` action when the current
+  page has both source text and translated text.
+- Starting the action switches the viewer to source + translation mode.
+- The user selects the target term in the translated text, then selects the
+  corresponding source term in the original text.
+- After both sides are selected, `후보 등록 확인` opens a confirmation dialog
+  showing `source_term → suggested_target_term`, for example `王都 → 왕도`.
+- Confirming creates a pending glossary candidate and refreshes the glossary
+  candidate query. Approval/rejection remains in the glossary screen.
+- Automatic source-term inference from edited translations is out of scope for
+  this MVP; the selected pair is treated as user-confirmed.
+
 ## 2026-07-09 Retry, Candidate, and Health UI
 
 - The translation viewer shows failed chunks for the current page. Each item
@@ -8,8 +22,8 @@
   translation controls and the selected retry action are disabled. Success
   refreshes job detail; failure keeps the chunk visible and displays the API
   error.
-- The glossary screen shows pending candidates with source context, model
-  translation, user correction, and suggested term. Approval opens an editor
+- The glossary screen shows pending candidates as compact source/target term
+  pairs only, without source or translation context. Approval opens an editor
   for term metadata; rejection requires confirmation.
 - Candidate approval defaults are `term_type=common`, `priority=80`,
   `is_required=true`, and `is_case_sensitive=false`.

@@ -222,6 +222,27 @@ def test_create_candidate_from_feedback(db_session: Session) -> None:
     assert candidate.source_term == "王都"
 
 
+def test_create_candidate_from_manual_selection_allows_unchanged_context(
+    db_session: Session,
+) -> None:
+    service = GlossaryService(db_session)
+
+    candidate = service.create_candidate_from_manual_selection(
+        source_lang="ja",
+        target_lang="ko",
+        source_term="王都",
+        suggested_target_term="왕도",
+        source_text="王都の空を見上げた。",
+        model_translation="왕도의 하늘을 올려다보았다.",
+        user_corrected_translation="왕도의 하늘을 올려다보았다.",
+    )
+
+    assert candidate.status == "pending"
+    assert candidate.source_term == "王都"
+    assert candidate.suggested_target_term == "왕도"
+    assert candidate.model_translation == candidate.user_corrected_translation
+
+
 def test_approve_candidate_creates_term_and_updates_status(db_session: Session) -> None:
     service = GlossaryService(db_session)
     candidate = service.create_candidate_from_feedback(

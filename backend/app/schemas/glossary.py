@@ -131,6 +131,32 @@ class GlossaryCandidateApproveRequest(BaseModel):
         return [alias.strip() for alias in value if alias.strip()]
 
 
+class GlossaryCandidateCreateRequest(BaseModel):
+    source_lang: str = "ja"
+    target_lang: str = "ko"
+    source_term: str
+    suggested_target_term: str
+    source_text: str
+    model_translation: str
+    user_corrected_translation: str
+
+    @field_validator(
+        "source_lang",
+        "target_lang",
+        "source_term",
+        "suggested_target_term",
+        "source_text",
+        "model_translation",
+        "user_corrected_translation",
+    )
+    @classmethod
+    def validate_non_empty(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be empty")
+        return value
+
+
 class GlossaryCandidateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -174,6 +174,46 @@ def test_glossary_api_import_json_text(db_session: Session) -> None:
     assert imported.json()["imported"] == 1
 
 
+def test_glossary_candidate_api_create_manual_selection(db_session: Session) -> None:
+    app.dependency_overrides[get_db] = _override_db(db_session)
+
+    try:
+        client = TestClient(app)
+        created = client.post(
+            "/api/glossary/candidates",
+            json={
+                "source_lang": "ja",
+                "target_lang": "ko",
+                "source_term": "王都",
+                "suggested_target_term": "왕도",
+                "source_text": "王都の空を見上げた。",
+                "model_translation": "왕도의 하늘을 올려다보았다.",
+                "user_corrected_translation": "왕도의 하늘을 올려다보았다.",
+            },
+        )
+        invalid = client.post(
+            "/api/glossary/candidates",
+            json={
+                "source_lang": "ja",
+                "target_lang": "ko",
+                "source_term": "   ",
+                "suggested_target_term": "왕도",
+                "source_text": "王都の空を見上げた。",
+                "model_translation": "왕도의 하늘을 올려다보았다.",
+                "user_corrected_translation": "왕도의 하늘을 올려다보았다.",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert created.status_code == 201
+    payload = created.json()
+    assert payload["source_term"] == "王都"
+    assert payload["suggested_target_term"] == "왕도"
+    assert payload["status"] == "pending"
+    assert invalid.status_code == 422
+
+
 def test_glossary_candidate_api_approve_and_reject(db_session: Session) -> None:
     service = GlossaryService(db_session)
     approve_candidate = service.create_candidate_from_feedback(

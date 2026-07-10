@@ -46,6 +46,7 @@ export default function Home() {
     glossary.deleteTerm.isPending ||
     glossary.permanentlyDeleteTerm.isPending ||
     glossary.importTerms.isPending ||
+    glossary.createCandidate.isPending ||
     glossary.approveCandidate.isPending ||
     glossary.rejectCandidate.isPending;
 
@@ -89,6 +90,8 @@ export default function Home() {
             currentPageIndex={translation.currentPageIndex}
             errorMessage={translation.errorMessage}
             isTranslating={translation.isTranslating}
+            isCreatingGlossaryCandidate={glossary.createCandidate.isPending}
+            onCreateGlossaryCandidate={(request) => glossary.createCandidate.mutate(request)}
             onPageChange={translation.setCurrentPageIndex}
             onRetryChunk={translation.retryFailedChunk}
             onTranslateAllText={translation.translateTextAll}

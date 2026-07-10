@@ -71,6 +71,16 @@ export interface GlossaryCandidate {
   updated_at: string;
 }
 
+export interface GlossaryCandidateCreateRequest {
+  source_lang: GlossarySourceLanguage;
+  target_lang: TargetLanguage;
+  source_term: string;
+  suggested_target_term: string;
+  source_text: string;
+  model_translation: string;
+  user_corrected_translation: string;
+}
+
 export interface GlossaryCandidateApproveRequest {
   glossary_set_id?: number | null;
   term_type: GlossaryTermType;
