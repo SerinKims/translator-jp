@@ -52,7 +52,7 @@ function Test-CondaEnv {
         return $false
     }
 
-    $envList = & $conda.Source env list 2>$null
+    $envList = & $conda.Source --no-plugins env list 2>$null
     if ($LASTEXITCODE -ne 0) {
         return $false
     }
@@ -64,7 +64,23 @@ function Invoke-ProjectPython {
     param([string[]]$Arguments)
 
     if ($script:UseCondaPython) {
-        & $script:CondaPath run -n $script:CondaEnvName python @Arguments
+        # conda run은 인자에 개행이 포함되면 실패한다
+        # (AssertionError: Support for scripts where arguments contain newlines not implemented.)
+        # "-c <multiline code>" 패턴이면 임시 .py 파일에 써서 그 파일을 실행하는 방식으로 우회한다.
+        if (($Arguments.Count -eq 2) -and ($Arguments[0] -eq "-c") -and ($Arguments[1] -match "`n")) {
+            $tempScript = [System.IO.Path]::GetTempFileName()
+            $tempScript = [System.IO.Path]::ChangeExtension($tempScript, ".py")
+            try {
+                Set-Content -LiteralPath $tempScript -Encoding UTF8 -Value $Arguments[1]
+                & $script:CondaPath --no-plugins run -n $script:CondaEnvName python $tempScript
+            }
+            finally {
+                Remove-Item -LiteralPath $tempScript -ErrorAction SilentlyContinue
+            }
+        }
+        else {
+            & $script:CondaPath --no-plugins run -n $script:CondaEnvName python @Arguments
+        }
     }
     else {
         & $script:ProjectPython @Arguments
@@ -138,7 +154,7 @@ if (-not $UseVenv) {
 
     if (-not (Test-CondaEnv $CondaEnv)) {
         Write-Host "conda env '$CondaEnv'가 없어 새로 생성합니다."
-        & $CondaPath create -y -n $CondaEnv "python=$CondaPythonVersion" pip
+        & $CondaPath --no-plugins create -y -n $CondaEnv "python=$CondaPythonVersion" pip
     }
     else {
         Write-Host "conda env '$CondaEnv' already exists"
@@ -170,7 +186,7 @@ else {
 
 if (-not $SkipDependencyInstall) {
     Write-Step "Checking backend dependencies"
-    $MissingRequirementSpecs = Get-MissingRequirementSpecs
+    $MissingRequirementSpecs = @(Get-MissingRequirementSpecs)
     if (($MissingRequirementSpecs.Count -gt 0) -or $InstallBackendDependencies) {
         if ($InstallBackendDependencies) {
             Write-Host "Installing backend requirements by request."

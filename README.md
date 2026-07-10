@@ -18,7 +18,7 @@ Windows PowerShell:
 .\run.ps1
 ```
 
-기본값은 conda 환경 `tr-jp`입니다. `tr-jp`가 없으면 `python=3.11`과 `pip`를 포함해 새로 생성합니다. 이후 `backend/requirements.txt`를 기준으로 설치되지 않은 Python 패키지만 `tr-jp` 안에 설치합니다. base 환경에는 설치하지 않습니다.
+기본값은 conda 환경 `tr-jp`입니다. conda는 플러그인 오류를 피하기 위해 `--no-plugins`로 호출합니다. `tr-jp`가 없으면 `python=3.11`과 `pip`를 포함해 새로 생성합니다. 이후 `backend/requirements.txt`를 기준으로 설치되지 않은 Python 패키지만 `tr-jp` 안에 설치합니다. base 환경에는 설치하지 않습니다.
 
 첫 실행이면 `.env`, DB, frontend 환경 파일과 frontend 의존성을 준비한 뒤 backend/frontend 개발 서버를 각각 새 PowerShell 창으로 실행합니다.
 

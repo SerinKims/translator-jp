@@ -22,7 +22,7 @@ function Test-CondaEnv {
         return $false
     }
 
-    $envList = & $conda.Source env list 2>$null
+    $envList = & $conda.Source --no-plugins env list 2>$null
     if ($LASTEXITCODE -ne 0) {
         return $false
     }
@@ -35,7 +35,7 @@ $env:PYTHONPATH = $BackendDir
 
 $Conda = Get-Command "conda" -ErrorAction SilentlyContinue
 if ((-not $UseVenv) -and (Test-CondaEnv $CondaEnv)) {
-    & $Conda.Source run -n $CondaEnv --no-capture-output python -m uvicorn app.main:app --host $BindHost --port $Port --reload
+    & $Conda.Source --no-plugins run -n $CondaEnv --no-capture-output python -m uvicorn app.main:app --host $BindHost --port $Port --reload
 }
 else {
     if (-not (Test-Path -LiteralPath $VenvPython)) {

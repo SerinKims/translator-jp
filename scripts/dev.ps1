@@ -84,7 +84,7 @@ function Test-CondaEnv {
         return $false
     }
 
-    $envList = & $conda.Source env list 2>$null
+    $envList = & $conda.Source --no-plugins env list 2>$null
     if ($LASTEXITCODE -ne 0) {
         return $false
     }
@@ -141,7 +141,7 @@ $BackendArgs = @(
     "-BindHost",
     $BackendHost,
     "-Port",
-    $BackendPort,
+    "$BackendPort",
     "-CondaEnv",
     $CondaEnv
 )
@@ -149,8 +149,6 @@ $BackendArgs = @(
 if ($UseVenv) {
     $BackendArgs += "-UseVenv"
 }
-
-Start-Process -FilePath $PowerShellExe -WorkingDirectory $BackendDir -ArgumentList $BackendArgs
 
 $FrontendArgs = @(
     "-NoExit",
@@ -160,7 +158,25 @@ $FrontendArgs = @(
     $FrontendScript
 )
 
-Start-Process -FilePath $PowerShellExe -WorkingDirectory $FrontendDir -ArgumentList $FrontendArgs
+# Windows Terminal(wt.exe)이 있으면 한 창을 좌/우로 분할해서 backend + frontend를 함께 띄운다.
+# 없으면 기존처럼 PowerShell 창 두 개로 폴백한다.
+$Wt = Get-Command "wt.exe" -ErrorAction SilentlyContinue
+$UsedSinglePane = $false
+if ($Wt) {
+    $WtArgs = @(
+        "new-tab", "--title", "backend", "-d", $BackendDir, $PowerShellExe
+    ) + $BackendArgs + @(
+        ";",
+        "split-pane", "-V", "--title", "frontend", "-d", $FrontendDir, $PowerShellExe
+    ) + $FrontendArgs
+
+    Start-Process -FilePath $Wt.Source -ArgumentList $WtArgs
+    $UsedSinglePane = $true
+}
+else {
+    Start-Process -FilePath $PowerShellExe -WorkingDirectory $BackendDir -ArgumentList $BackendArgs
+    Start-Process -FilePath $PowerShellExe -WorkingDirectory $FrontendDir -ArgumentList $FrontendArgs
+}
 
 Write-Host ""
 Write-Host "Started backend and frontend dev servers." -ForegroundColor Green
@@ -172,4 +188,11 @@ else {
 }
 Write-Host "Frontend: http://localhost:3000"
 Write-Host "Backend:  http://localhost:$BackendPort"
-Write-Host "Stop servers by closing the two PowerShell windows or pressing Ctrl+C in each window."
+if ($UsedSinglePane) {
+    Write-Host "Both servers run in one Windows Terminal window (backend | frontend split panes)."
+    Write-Host "Stop servers by pressing Ctrl+C in each pane or closing the window."
+}
+else {
+    Write-Host "Windows Terminal(wt.exe)을 찾지 못해 창 두 개로 실행했습니다. (설치하면 한 창으로 합쳐집니다.)"
+    Write-Host "Stop servers by closing the two PowerShell windows or pressing Ctrl+C in each window."
+}
