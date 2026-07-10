@@ -81,3 +81,31 @@ def test_save_translation_cache_with_language_pair(db_session: Session) -> None:
 
     assert cache_entry.source_lang == "en"
     assert cache_entry.target_lang == "ko"
+
+
+def test_delete_all_translation_cache_entries(db_session: Session) -> None:
+    repository = CacheRepository(db_session)
+    repository.create_cache_entry(
+        cache_key="cache-key-a",
+        source_text="source text a",
+        translated_text="translated text a",
+    )
+    repository.create_cache_entry(
+        cache_key="cache-key-b",
+        source_text="source text b",
+        translated_text="translated text b",
+    )
+
+    deleted_count = repository.delete_all()
+
+    assert deleted_count == 2
+    assert repository.get_by_cache_key("cache-key-a") is None
+    assert repository.get_by_cache_key("cache-key-b") is None
+
+
+def test_delete_all_translation_cache_entries_is_safe_when_empty(
+    db_session: Session,
+) -> None:
+    repository = CacheRepository(db_session)
+
+    assert repository.delete_all() == 0

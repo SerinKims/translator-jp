@@ -6,10 +6,12 @@ import { GlossaryManager } from "@/components/glossary/GlossaryManager";
 import { TranslationHistory } from "@/components/history/TranslationHistory";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppSection, AppSidebar } from "@/components/layout/AppSidebar";
+import { CacheManagementCard } from "@/components/settings/CacheManagementCard";
 import { MODEL_SETTINGS_STORAGE_KEY, ModelSettings } from "@/components/settings/ModelSettings";
 import { HealthStatusCard } from "@/components/settings/HealthStatusCard";
 import { TranslatePanel } from "@/components/translator/TranslatePanel";
 import { TranslationViewer } from "@/components/translator/TranslationViewer";
+import { useTranslationCache } from "@/hooks/useTranslationCache";
 import { useGlossary } from "@/hooks/useGlossary";
 import { useHealth } from "@/hooks/useHealth";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -21,6 +23,7 @@ export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [modelSettings, setModelSettings] = useState<ModelSettingsType>(DEFAULT_MODEL_SETTINGS);
   const translation = useTranslation();
+  const translationCache = useTranslationCache();
   const history = useTranslationHistory();
   const glossary = useGlossary();
   const health = useHealth();
@@ -164,6 +167,12 @@ export default function Home() {
               health={health.health}
               isFetching={health.isFetching}
               onRefresh={() => void health.refresh()}
+            />
+            <CacheManagementCard
+              clearCache={() => translationCache.clearCache.mutate()}
+              error={translationCache.clearCache.error}
+              isClearing={translationCache.clearCache.isPending}
+              isSuccess={translationCache.clearCache.isSuccess}
             />
             <ModelSettings settings={modelSettings} onSettingsChange={setModelSettings} />
           </div>

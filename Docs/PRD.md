@@ -1,5 +1,14 @@
 # PRD: 일본어 → 한국어 웹소설 번역 사이트
 
+## 2026-07-10 Translation Cache Clear Requirements
+
+- Users can clear the server-side translation reuse cache from the settings
+  screen.
+- Clearing cache deletes only `translation_cache` rows.
+- Translation history, page/chunk records, feedback, glossary data, and browser
+  local model settings are preserved.
+- Clearing an already empty cache is treated as a successful no-op.
+
 ## 2026-07-10 Manual Translation Edit Requirements
 
 - Users can edit and save the Korean translation for the current page in the

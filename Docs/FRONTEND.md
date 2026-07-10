@@ -1,5 +1,15 @@
 # FRONTEND
 
+## 2026-07-10 Translation Cache Clear UX
+
+- The settings section shows a cache management card.
+- Selecting `캐시 삭제` opens a confirmation dialog before clearing server-side
+  translation cache.
+- While deletion is pending, the clear action is disabled.
+- Success and failure messages are shown in the cache management card.
+- Clearing cache does not reset browser local model settings or translation
+  history state.
+
 ## 2026-07-10 Translation History Deletion Refresh UX
 
 - After deleting one history item, the history list query is refreshed.

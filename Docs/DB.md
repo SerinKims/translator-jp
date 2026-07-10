@@ -1,5 +1,17 @@
 # DB
 
+## 2026-07-10 Manual Translation Cache Clear Policy
+
+Manual cache clearing uses the existing `translation_cache` table and does not
+require a schema change.
+
+- `DELETE /api/cache/translations` deletes all `translation_cache` rows.
+- Translation history, pages, chunks, feedback, glossary rows, and user settings
+  are preserved.
+- Cache clearing is a no-op when the table is already empty.
+- New cache entries are created normally by later translation requests when
+  `use_cache=true`.
+
 ## 2026-07-10 Manual Translation Edit Persistence
 
 Manual translation edits reuse existing tables and do not require a schema change.

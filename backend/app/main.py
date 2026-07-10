@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes.cache import router as cache_router
 from app.api.routes.fetch import router as fetch_router
 from app.api.routes.glossary import router as glossary_router
 from app.api.routes.health import router as health_router
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router, prefix="/api")
+    app.include_router(cache_router, prefix="/api")
     app.include_router(fetch_router, prefix="/api")
     app.include_router(glossary_router, prefix="/api")
     app.include_router(history_router, prefix="/api")

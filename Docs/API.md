@@ -1,5 +1,20 @@
 # API Specification
 
+## 2026-07-10 Translation Cache Clear Contract
+
+The settings screen can clear server-side translation reuse cache.
+
+```http
+DELETE /api/cache/translations
+```
+
+- The endpoint deletes all rows from `translation_cache`.
+- It does not delete translation jobs, pages, chunks, feedback, glossary data,
+  or browser local settings.
+- The endpoint is idempotent and returns `204 No Content` even when the cache
+  is already empty.
+- No request body is required.
+
 ## 2026-07-10 Manual Translation Edit Contract
 
 The translation viewer can save a user-edited final translation for one page.

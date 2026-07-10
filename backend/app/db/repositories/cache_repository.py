@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import TranslationCache
@@ -63,6 +63,11 @@ class CacheRepository:
         self.db.commit()
         self.db.refresh(cache_entry)
         return cache_entry
+
+    def delete_all(self) -> int:
+        result = self.db.execute(delete(TranslationCache))
+        self.db.commit()
+        return int(result.rowcount or 0)
 
     def _ensure_sqlite_language_columns(self) -> None:
         bind = self.db.get_bind()
