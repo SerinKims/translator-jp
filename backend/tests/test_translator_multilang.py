@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import TranslationJob
 from app.db.repositories.chunk_repository import ChunkRepository
+from app.llm.prompts import PromptLoader
 from app.llm.translator import (
     ONLY_KO_TARGET_MESSAGE,
     UNKNOWN_SOURCE_LANGUAGE_MESSAGE,
@@ -15,6 +17,13 @@ from app.llm.translator import (
     TranslationServiceError,
 )
 from app.schemas.translation import TranslationRequest
+
+DEFAULT_PROMPTS = {
+    ("ja", "ko"): "translate_ja_ko_v1",
+    ("zh-CN", "ko"): "translate_zh_ko_v1",
+    ("zh-TW", "ko"): "translate_zh_ko_v1",
+    ("en", "ko"): "translate_en_ko_v1",
+}
 
 
 def test_auto_detects_japanese_and_keeps_existing_translation_request(
@@ -63,6 +72,58 @@ def test_direct_english_request_selects_english_prompt(db_session: Session) -> N
         assert job.source_language == "en"
         assert job.detected_lang == "en"
         assert job.language_confidence == 1.0
+
+    asyncio.run(run_test())
+
+
+def test_direct_english_request_accepts_dynamic_prompt_override(
+    db_session: Session,
+    tmp_path: Path,
+) -> None:
+    async def run_test() -> None:
+        (tmp_path / "translate_en_ko_v2.md").write_text("dynamic english prompt", encoding="utf-8")
+        fake_client = FakeOllamaClient(["洹몃뒗 ?덉쓣 媛먯븯??"])
+        service = TranslationService(
+            db_session,
+            ollama_client=fake_client,
+            prompt_loader=PromptLoader(
+                prompt_dir=tmp_path,
+                default_prompt_versions=DEFAULT_PROMPTS,
+            ),
+        )
+
+        response = await service.translate_text(
+            TranslationRequest(
+                text="He closed his eyes and waited for dawn.",
+                source_lang="en",
+                prompt_version="translate_en_ko_v2",
+            )
+        )
+
+        assert response.source_lang == "en"
+        assert response.prompt_version == "translate_en_ko_v2"
+        assert fake_client.calls[0]["messages"][0]["content"] == "dynamic english prompt"
+
+    asyncio.run(run_test())
+
+
+def test_non_japanese_request_ignores_japanese_default_prompt_override(
+    db_session: Session,
+) -> None:
+    async def run_test() -> None:
+        fake_client = FakeOllamaClient(["洹몃뒗 ?덉쓣 媛먯븯??"])
+        service = TranslationService(db_session, ollama_client=fake_client)
+        service.prompt_version = "translate_ja_ko_v2"
+
+        response = await service.translate_text(
+            TranslationRequest(
+                text="He closed his eyes and waited for dawn.",
+                source_lang="en",
+            )
+        )
+
+        assert response.source_lang == "en"
+        assert response.prompt_version == "translate_en_ko_v1"
 
     asyncio.run(run_test())
 

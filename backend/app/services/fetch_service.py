@@ -103,6 +103,14 @@ class FetchService:
                 detected_lang = detection.language
                 language_confidence = detection.confidence
 
+        resolved_prompt_version = prompt_version or self.translation_service.prompt_version
+        if resolved_source_lang != "auto":
+            resolved_prompt_version = self.translation_service.select_prompt_version(
+                source_lang=resolved_source_lang,
+                target_lang=target_lang,
+                prompt_version=prompt_version,
+            )
+
         job = self.translation_repository.create_job(
             source_site="pixiv",
             source_url=novel.source_url,
@@ -116,7 +124,7 @@ class FetchService:
             detected_lang=detected_lang,
             language_confidence=language_confidence,
             model_name=model_name or self.translation_service.model_name,
-            prompt_version=prompt_version or self.translation_service.prompt_version,
+            prompt_version=resolved_prompt_version,
             style=style,
             honorific_policy=honorific_policy,
             preserve_names=preserve_names,

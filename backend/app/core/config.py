@@ -22,7 +22,9 @@ class Settings(BaseSettings):
 
     max_chars_per_chunk: int = 1000
     chunk_overlap_paragraphs: int = 1
-    prompt_version: str = "translate_ja_ko_v1"
+    prompt_version_ja_ko: str = "translate_ja_ko_v1"
+    prompt_version_zh_ko: str = "translate_zh_ko_v1"
+    prompt_version_en_ko: str = "translate_en_ko_v1"
 
     log_level: str = "INFO"
     save_raw_model_response: bool = True

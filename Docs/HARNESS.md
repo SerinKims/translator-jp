@@ -110,7 +110,8 @@ DB 구조의 세부 기준은 `Docs/DB.md`를 따른다.
 5. reports에 결과 저장
 6. eval_runs / eval_results 저장
 7. 악화 케이스 분석
-8. 품질 개선이면 기본 PROMPT_VERSION 갱신
+8. 품질 개선이면 해당 언어쌍의 기본 prompt env 갱신
+   (`PROMPT_VERSION_JA_KO`, `PROMPT_VERSION_ZH_KO`, `PROMPT_VERSION_EN_KO`)
 ```
 
 ---
@@ -122,7 +123,6 @@ DB 구조의 세부 기준은 `Docs/DB.md`를 따른다.
 ```bash
 python harness/run_eval.py \
   --dataset harness/datasets/smoke_cases.jsonl \
-  --prompt harness/prompts/translate_ja_ko_v1.md \
   --model gemma4:26b-a4b-it-q4_K_M
 ```
 
@@ -131,7 +131,6 @@ python harness/run_eval.py \
 ```bash
 python harness/run_eval.py \
   --dataset harness/datasets/golden_ja_ko.jsonl \
-  --prompt harness/prompts/translate_ja_ko_v1.md \
   --model gemma4:26b-a4b-it-q4_K_M \
   --output harness/reports/latest.json
 ```

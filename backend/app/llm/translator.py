@@ -84,7 +84,7 @@ UNKNOWN_SOURCE_LANGUAGE_MESSAGE = "원문 언어를 감지하지 못했습니다
 @dataclass(frozen=True)
 class TranslationRunOptions:
     model_name: str
-    prompt_version: str
+    prompt_version: str | None
     source_lang: str
     target_lang: str
     style: str
@@ -130,12 +130,36 @@ class TranslationService:
             else settings.chunk_overlap_paragraphs or CHUNK_OVERLAP_PARAGRAPHS
         )
         self.model_name = settings.ollama_model_name or MODEL_NAME
-        self.prompt_version = settings.prompt_version or PROMPT_VERSION
+        self.prompt_version = (
+            settings.prompt_version_ja_ko or settings.prompt_version or PROMPT_VERSION
+        )
+
+    def select_prompt_version(
+        self,
+        *,
+        source_lang: str,
+        target_lang: str,
+        prompt_version: str | None = None,
+    ) -> str:
+        run_options = TranslationRunOptions(
+            model_name=self.model_name,
+            prompt_version=prompt_version,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            style="webnovel",
+            honorific_policy="preserve",
+            preserve_names=True,
+            use_glossary=True,
+            use_cache=True,
+            think=False,
+            options=None,
+        )
+        return self._select_prompt_version_for_run(run_options)
 
     async def translate_text(self, request: TranslationRequest) -> TranslationResponse:
         run_options = TranslationRunOptions(
             model_name=request.model_name or self.model_name,
-            prompt_version=request.prompt_version or self.prompt_version,
+            prompt_version=request.prompt_version,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             style=request.style,
@@ -154,11 +178,7 @@ class TranslationService:
             text=request.text,
         )
 
-        prompt_version = self.prompt_loader.select_prompt_version(
-            source_lang=run_options.source_lang,
-            target_lang=run_options.target_lang,
-            prompt_version=run_options.prompt_version,
-        )
+        prompt_version = self._select_prompt_version_for_run(run_options)
         run_options = replace(run_options, prompt_version=prompt_version)
         job = TranslationRepository(self.db).create_job(
             original_text=request.text,
@@ -463,11 +483,7 @@ class TranslationService:
         run_options: TranslationRunOptions,
     ) -> TranslationResponse:
         started_at = time.perf_counter()
-        prompt_version = self.prompt_loader.select_prompt_version(
-            source_lang=run_options.source_lang,
-            target_lang=run_options.target_lang,
-            prompt_version=run_options.prompt_version,
-        )
+        prompt_version = self._select_prompt_version_for_run(run_options)
         run_options = replace(run_options, prompt_version=prompt_version)
         system_prompt = self.prompt_loader.load(
             prompt_version,
@@ -918,7 +934,7 @@ class TranslationService:
     def _validate_request(self, request: TranslationRequest) -> None:
         run_options = TranslationRunOptions(
             model_name=request.model_name or self.model_name,
-            prompt_version=request.prompt_version or self.prompt_version,
+            prompt_version=request.prompt_version,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             style=request.style,
@@ -933,6 +949,13 @@ class TranslationService:
             page_index=request.page_index,
         )
         self._resolve_run_options(run_options, text=request.text)
+
+    def _select_prompt_version_for_run(self, run_options: TranslationRunOptions) -> str:
+        return self.prompt_loader.select_prompt_version(
+            source_lang=run_options.source_lang,
+            target_lang=run_options.target_lang,
+            prompt_version=run_options.prompt_version,
+        )
 
     def _resolve_run_options(
         self,

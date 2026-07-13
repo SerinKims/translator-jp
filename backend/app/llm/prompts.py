@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
 from pathlib import Path
 
-from app.core.config import PROJECT_ROOT
+from app.core.config import PROJECT_ROOT, get_settings
 
 UNSUPPORTED_LANGUAGE_PAIR_MESSAGE = "지원하지 않는 번역 언어 조합입니다."
 
 DEFAULT_SOURCE_LANG = "ja"
 DEFAULT_TARGET_LANG = "ko"
-DEFAULT_PROMPT_VERSION = "translate_ja_ko_v1"
+DEFARULT_JA_PROMPT_VERSION = "translate_ja_ko_v1"
+DEFAULT_ZH_PROMPT_VERSION = "translate_zh_ko_v1"
+DEFAULT_EN_PROMPT_VERSION = "translate_en_ko_v1"
+PROMPT_VERSION_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class PromptLoaderError(ValueError):
@@ -24,58 +27,23 @@ class UnsupportedLanguagePairError(PromptLoaderError):
     pass
 
 
-@dataclass(frozen=True)
-class PromptDefinition:
-    version: str
-    source_lang: str
-    target_lang: str
-    filename: str
-
-
-_PROMPT_DEFINITIONS: dict[tuple[str, str, str], PromptDefinition] = {
-    ("ja", "ko", "translate_ja_ko_v1"): PromptDefinition(
-        version="translate_ja_ko_v1",
-        source_lang="ja",
-        target_lang="ko",
-        filename="translate_ja_ko_v1.md",
-    ),
-    ("zh-CN", "ko", "translate_zh_ko_v1"): PromptDefinition(
-        version="translate_zh_ko_v1",
-        source_lang="zh-CN",
-        target_lang="ko",
-        filename="translate_zh_ko_v1.md",
-    ),
-    ("zh-TW", "ko", "translate_zh_ko_v1"): PromptDefinition(
-        version="translate_zh_ko_v1",
-        source_lang="zh-TW",
-        target_lang="ko",
-        filename="translate_zh_ko_v1.md",
-    ),
-    ("en", "ko", "translate_en_ko_v1"): PromptDefinition(
-        version="translate_en_ko_v1",
-        source_lang="en",
-        target_lang="ko",
-        filename="translate_en_ko_v1.md",
-    ),
-}
-
-_PROMPT_ALIASES: dict[str, str] = {
-    "translate_ja_ko_v1": "translate_ja_ko_v1",
-    "translate_zh_ko_v1": "translate_zh_ko_v1",
-    "translate_en_ko_v1": "translate_en_ko_v1",
-}
-
-_DEFAULT_PROMPTS_BY_LANGUAGE_PAIR: dict[tuple[str, str], str] = {
-    ("ja", "ko"): DEFAULT_PROMPT_VERSION,
-    ("zh-CN", "ko"): "translate_zh_ko_v1",
-    ("zh-TW", "ko"): "translate_zh_ko_v1",
-    ("en", "ko"): "translate_en_ko_v1",
+SUPPORTED_LANGUAGE_PAIR_PREFIXES: dict[tuple[str, str], str] = {
+    ("ja", "ko"): "translate_ja_ko_",
+    ("zh-CN", "ko"): "translate_zh_ko_",
+    ("zh-TW", "ko"): "translate_zh_ko_",
+    ("en", "ko"): "translate_en_ko_",
 }
 
 
 class PromptLoader:
-    def __init__(self, prompt_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        prompt_dir: Path | None = None,
+        *,
+        default_prompt_versions: dict[tuple[str, str], str] | None = None,
+    ) -> None:
         self.prompt_dir = prompt_dir or PROJECT_ROOT / "harness" / "prompts"
+        self.default_prompt_versions = default_prompt_versions or self._defaults_from_settings()
 
     def select_prompt_version(
         self,
@@ -85,17 +53,15 @@ class PromptLoader:
         prompt_version: str | None = None,
     ) -> str:
         language_pair = (source_lang, target_lang)
-        if language_pair not in _DEFAULT_PROMPTS_BY_LANGUAGE_PAIR:
+        expected_prefix = SUPPORTED_LANGUAGE_PAIR_PREFIXES.get(language_pair)
+        if expected_prefix is None:
             raise UnsupportedLanguagePairError(UNSUPPORTED_LANGUAGE_PAIR_MESSAGE)
 
-        default_version = _DEFAULT_PROMPTS_BY_LANGUAGE_PAIR[language_pair]
-        selected_version = _PROMPT_ALIASES.get(
-            prompt_version or default_version,
-            prompt_version or default_version,
+        selected_version = prompt_version or self.default_prompt_versions[language_pair]
+        self._validate_prompt_version(
+            selected_version,
+            expected_prefix=expected_prefix,
         )
-        if (source_lang, target_lang, selected_version) not in _PROMPT_DEFINITIONS:
-            if prompt_version == DEFAULT_PROMPT_VERSION:
-                return default_version
         return selected_version
 
     def load(
@@ -110,17 +76,29 @@ class PromptLoader:
             target_lang=target_lang,
             prompt_version=prompt_version,
         )
-        definition = _PROMPT_DEFINITIONS.get((source_lang, target_lang, selected_version))
-        if definition is None:
-            raise PromptNotFoundError(
-                f"Prompt version '{prompt_version or selected_version}' not found."
-            )
-
-        prompt_path = self.prompt_dir / definition.filename
+        prompt_path = self.prompt_dir / f"{selected_version}.md"
         if not prompt_path.is_file():
-            raise PromptNotFoundError(f"Prompt file not found for version '{definition.version}'.")
+            raise PromptNotFoundError(f"Prompt file not found for version '{selected_version}'.")
 
         return prompt_path.read_text(encoding="utf-8")
+
+    def _defaults_from_settings(self) -> dict[tuple[str, str], str]:
+        settings = get_settings()
+        ja_prompt_version = settings.prompt_version_ja_ko or DEFARULT_JA_PROMPT_VERSION
+        zh_prompt_version = settings.prompt_version_zh_ko or DEFAULT_ZH_PROMPT_VERSION
+        en_prompt_version = settings.prompt_version_en_ko or DEFAULT_EN_PROMPT_VERSION
+        return {
+            ("ja", "ko"): ja_prompt_version,
+            ("zh-CN", "ko"): zh_prompt_version,
+            ("zh-TW", "ko"): zh_prompt_version,
+            ("en", "ko"): en_prompt_version,
+        }
+
+    def _validate_prompt_version(self, prompt_version: str, *, expected_prefix: str) -> None:
+        if not PROMPT_VERSION_PATTERN.fullmatch(prompt_version) or not prompt_version.startswith(
+            expected_prefix
+        ):
+            raise PromptNotFoundError(f"Prompt version '{prompt_version}' not found.")
 
 
 def load_prompt(

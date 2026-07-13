@@ -656,18 +656,19 @@ User-facing validation messages:
 Prompt versions by language pair:
 
 ```text
-ja -> ko: translate_ja_ko_v1
-zh-CN -> ko: translate_zh_ko_v1
-zh-TW -> ko: translate_zh_ko_v1
-en -> ko: translate_en_ko_v1
+ja -> ko: PROMPT_VERSION_JA_KO, or legacy PROMPT_VERSION, default translate_ja_ko_v1
+zh-CN -> ko: PROMPT_VERSION_ZH_KO, default translate_zh_ko_v1
+zh-TW -> ko: PROMPT_VERSION_ZH_KO, default translate_zh_ko_v1
+en -> ko: PROMPT_VERSION_EN_KO, default translate_en_ko_v1
 ```
 
 Normal frontend requests omit `prompt_version`. The backend selects the prompt
 from the resolved `source_lang` and `target_lang`, then returns the applied
 `prompt_version` in the response. `prompt_version` remains an optional backend
-override for tests and maintenance tools; if the global Japanese default
-`translate_ja_ko_v1` is supplied with a non-Japanese source language, it falls
-back to that language pair's default prompt.
+override for tests and maintenance tools. Override values must match the
+language-pair prefix and a matching `harness/prompts/{prompt_version}.md` file
+must exist; for example, `en -> ko` accepts `translate_en_ko_*` and rejects
+`translate_ja_ko_*`.
 
 ## 2026-07-06 Request-Scoped Model Settings
 

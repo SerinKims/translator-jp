@@ -1,5 +1,35 @@
 # LLM / Prompt / Chunking 정책
 
+## 2026-07-13 Environment-Driven Prompt Versions
+
+Prompt files are loaded dynamically from `harness/prompts/{prompt_version}.md`.
+Adding a new prompt version no longer requires editing `backend/app/llm/prompts.py`
+as long as the file name matches the prompt version.
+
+Recommended `.env` settings:
+
+```env
+PROMPT_VERSION_JA_KO=translate_ja_ko_v2
+PROMPT_VERSION_ZH_KO=translate_zh_ko_v1
+PROMPT_VERSION_EN_KO=translate_en_ko_v2
+```
+
+Backward compatibility:
+
+- `PROMPT_VERSION` is still supported as the `ja -> ko` default only.
+- `PROMPT_VERSION_JA_KO` takes precedence over `PROMPT_VERSION`.
+- `zh-CN -> ko` and `zh-TW -> ko` share `PROMPT_VERSION_ZH_KO`.
+
+Prompt version overrides must match the source/target language pair:
+
+```text
+ja -> ko: translate_ja_ko_*
+zh-CN/zh-TW -> ko: translate_zh_ko_*
+en -> ko: translate_en_ko_*
+```
+
+A mismatched override, such as `translate_ja_ko_v2` for `en -> ko`, is rejected.
+
 ## 2026-06-30 Page-Aware Chunking
 
 Before chunking, source text is split on `[newpage]`.
@@ -332,17 +362,17 @@ harness/prompts/translate_zh_ko_v1.md
 harness/prompts/translate_en_ko_v1.md
 ```
 
-`zh-CN` and `zh-TW` share `translate_zh_ko_v1`. Prompt selection, glossary
-lookup, cache key generation, and chunk persistence all use the resolved source
-language. If `source_lang=auto`, language detection runs before prompt loading.
+`zh-CN` and `zh-TW` share the Chinese prompt setting. Prompt selection,
+glossary lookup, cache key generation, and chunk persistence all use the
+resolved source language. If `source_lang=auto`, language detection runs before
+prompt loading.
 
 Frontend translation requests omit `prompt_version` in the normal flow. The
 backend selects the default prompt version for the resolved language pair and
 returns the applied `prompt_version` in translation responses for history,
 cache, and debugging. `prompt_version` remains an optional backend override for
-tests or maintenance tooling; the global Japanese default
-`translate_ja_ko_v1` is remapped to the language-pair default when used with
-non-Japanese source languages.
+tests or maintenance tooling. Override values must match the language-pair
+prefix, such as `translate_en_ko_*` for `en -> ko`.
 
 Unsupported target languages are rejected because MVP target language is only
 Korean (`ko`).

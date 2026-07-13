@@ -88,6 +88,9 @@ CHUNK_OVERLAP_PARAGRAPHS=1
 DATABASE_URL=sqlite:///./translation.db
 
 PROMPT_VERSION=translate_ja_ko_v1
+PROMPT_VERSION_JA_KO=translate_ja_ko_v1
+PROMPT_VERSION_ZH_KO=translate_zh_ko_v1
+PROMPT_VERSION_EN_KO=translate_en_ko_v1
 LOG_LEVEL=INFO
 
 SAVE_RAW_MODEL_RESPONSE=true

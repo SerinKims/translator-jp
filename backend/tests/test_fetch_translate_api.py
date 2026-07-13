@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Generator
 from types import SimpleNamespace
@@ -199,6 +200,34 @@ def test_fetch_translate_route_allows_omitted_prompt_version(db_session: Session
     assert response.status_code == 200
     assert fake_service.calls[0]["source_lang"] == "en"
     assert fake_service.calls[0]["prompt_version"] is None
+
+
+def test_fetch_pixiv_uses_language_default_when_japanese_prompt_override_exists(
+    db_session: Session,
+) -> None:
+    translation_service = TranslationService(
+        db_session,
+        ollama_client=FakeOllamaClient(["unused"]),
+    )
+    translation_service.prompt_version = "translate_ja_ko_v2"
+    service = FetchService(
+        db_session,
+        pixiv_client=FakePixivClient(),
+        translation_service=translation_service,
+    )
+
+    response = asyncio.run(
+        service.fetch_pixiv(
+            url=PIXIV_URL,
+            source_lang="en",
+            target_lang="ko",
+        )
+    )
+
+    saved = db_session.get(TranslationJob, response.job_id)
+    assert saved is not None
+    assert saved.source_language == "en"
+    assert saved.prompt_version == "translate_en_ko_v1"
 
 
 def test_fetch_translate_with_translator_mock_saves_source_metadata(
